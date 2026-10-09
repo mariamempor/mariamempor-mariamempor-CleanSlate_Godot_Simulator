@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HelpDesk TI - Sistema de Chamados</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-headset"></i>
+                <span>HelpDesk TI</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-page="dashboard">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" data-page="chamados">
+                <i class="fas fa-ticket-alt"></i>
+                <span>Chamados</span>
+            </a>
+            <a href="#" class="nav-item" data-page="fila">
+                <i class="fas fa-list-ol"></i>
+                <span>Fila de Atendimento</span>
+            </a>
+            <a href="#" class="nav-item" data-page="historico">
+                <i class="fas fa-history"></i>
+                <span>Historico</span>
+            </a>
+            <a href="#" class="nav-item" data-page="usuarios">
+                <i class="fas fa-users"></i>
+                <span>Usuarios</span>
+            </a>
+            <a href="#" class="nav-item" data-page="equipamentos">
+                <i class="fas fa-desktop"></i>
+                <span>Equipamentos</span>
+            </a>
+            <a href="#" class="nav-item" data-page="busca">
+                <i class="fas fa-search"></i>
+                <span>Busca (Arvore)</span>
+            </a>
+            <a href="#" class="nav-item" data-page="ordenacao">
+                <i class="fas fa-sort-amount-down"></i>
+                <span>Ordenacao</span>
+            </a>
+            <a href="#" class="nav-item" data-page="estruturas">
+                <i class="fas fa-project-diagram"></i>
+                <span>Estruturas de Dados</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-info">
+                <i class="fas fa-code"></i>
+                <span>Projeto Educacional</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <button class="menu-toggle" id="menuToggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="topbar-title" id="pageTitle">Dashboard</div>
+            <div class="topbar-actions">
+                <button class="btn btn-warning btn-sm" id="btnDesfazer" onclick="desfazerUltimaAcao()" title="Desfazer ultima acao (Undo)">
+                    <i class="fas fa-undo"></i> Desfazer
+                </button>
+                <button class="btn btn-primary" id="btnNovoChamado" onclick="abrirModalNovoChamado()">
+                    <i class="fas fa-plus"></i> Novo Chamado
+                </button>
+            </div>
+        </header>
+
+        <!-- Pages Container -->
+        <div class="page-container">
+
+            <!-- ==================== DASHBOARD ==================== -->
+            <div class="page active" id="page-dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card stat-total">
+                        <div class="stat-icon"><i class="fas fa-ticket-alt"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="statTotal">0</span>
+                            <span class="stat-label">Total Chamados</span>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-fila">
+                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="statFila">0</span>
+                            <span class="stat-label">Na Fila</span>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-atendimento">
+                        <div class="stat-icon"><i class="fas fa-wrench"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="statAtendimento">0</span>
+                            <span class="stat-label">Em Atendimento</span>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-finalizado">
+                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="statFinalizados">0</span>
+                            <span class="stat-label">Finalizados</span>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-sla">
+                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="statSla">0</span>
+                            <span class="stat-label">SLA Estourado</span>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-arvore">
+                        <div class="stat-icon"><i class="fas fa-sitemap"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="statArvore">0</span>
+                            <span class="stat-label">Altura Arvore</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-pie"></i> Por Prioridade</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="priority-bars" id="priorityBars"></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-history"></i> Ultimas Operacoes</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline" id="dashTimeline"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list-ol"></i> Proximo na Fila</h3>
+                    </div>
+                    <div class="card-body" id="dashProximoFila">
+                        <p class="text-muted">Nenhum chamado na fila</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== CHAMADOS ==================== -->
+            <div class="page" id="page-chamados">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-ticket-alt"></i> Todos os Chamados</h3>
+                        <div class="card-actions">
+                            <select id="filtroStatus" onchange="carregarChamados()">
+                                <option value="">Todos os Status</option>
+                                <option value="ABERTO">Abertos</option>
+                                <option value="EM_ATENDIMENTO">Em Atendimento</option>
+                                <option value="FINALIZADO">Finalizados</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Titulo</th>
+                                        <th>Usuario</th>
+                                        <th>Setor</th>
+                                        <th>Prioridade</th>
+                                        <th>Status</th>
+                                        <th>Data Abertura</th>
+                                        <th>Acoes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaChamados"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== FILA ==================== -->
+            <div class="page" id="page-fila">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list-ol"></i> Fila de Atendimento (FIFO)</h3>
+                        <div class="card-actions">
+                            <span class="badge badge-info" id="filaCount">0 chamados</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box info-blue">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Estrutura: Fila (Queue)</strong> - Os chamados sao atendidos na ordem de chegada (FIFO - First In, First Out). O primeiro chamado a entrar na fila e o primeiro a ser atendido.
+                        </div>
+                        <div id="filaContainer" class="fila-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== HISTORICO ==================== -->
+            <div class="page" id="page-historico">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-history"></i> Historico de Operacoes (LIFO)</h3>
+                        <div class="card-actions">
+                            <span class="badge badge-info" id="historicoCount">0 registros</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box info-purple">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Estrutura: Pilha (Stack)</strong> - As operacoes sao empilhadas e exibidas na ordem mais recente primeiro (LIFO - Last In, First Out).
+                        </div>
+                        <div id="historicoContainer" class="timeline"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== USUARIOS ==================== -->
+            <div class="page" id="page-usuarios">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-users"></i> Usuarios Cadastrados</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-primary btn-sm" onclick="abrirModalNovoUsuario()">
+                                <i class="fas fa-plus"></i> Novo Usuario
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box info-green">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Estrutura: Lista Ligada</strong> - Os usuarios sao armazenados em uma lista ligada (Linked List), permitindo insercao e remocao dinamica.
+                        </div>
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nome</th>
+                                        <th>Email</th>
+                                        <th>Setor</th>
+                                        <th>Cargo</th>
+                                        <th>Acoes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaUsuarios"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== EQUIPAMENTOS ==================== -->
+            <div class="page" id="page-equipamentos">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-desktop"></i> Equipamentos Cadastrados</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-primary btn-sm" onclick="abrirModalNovoEquipamento()">
+                                <i class="fas fa-plus"></i> Novo Equipamento
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box info-green">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Estrutura: Lista Ligada</strong> - Os equipamentos sao armazenados em uma lista ligada (Linked List).
+                        </div>
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Tipo</th>
+                                        <th>Marca</th>
+                                        <th>Patrimonio</th>
+                                        <th>Setor</th>
+                                        <th>Acoes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaEquipamentos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== BUSCA ==================== -->
+            <div class="page" id="page-busca">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-search"></i> Busca de Chamados</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box info-orange">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Estrutura: Arvore Binaria de Busca (BST)</strong> - A busca por ID utiliza a arvore binaria para localizar chamados com eficiencia O(log n). A busca por termo percorre a lista ligada filtrando resultados.
+                        </div>
+                        <div class="search-section">
+                            <div class="search-group">
+                                <label>Busca por ID (Arvore Binaria)</label>
+                                <div class="search-input-group">
+                                    <input type="number" id="buscaId" placeholder="Digite o ID do chamado" min="1">
+                                    <button class="btn btn-primary" onclick="buscarPorId()">
+                                        <i class="fas fa-search"></i> Buscar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="search-group">
+                                <label>Busca por Termo (Lista Ligada)</label>
+                                <div class="search-input-group">
+                                    <input type="text" id="buscaTermo" placeholder="Digite titulo, descricao, usuario ou setor">
+                                    <button class="btn btn-primary" onclick="buscarPorTermo()">
+                                        <i class="fas fa-search"></i> Buscar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="search-group">
+                                <label>Travessias da Arvore Binaria</label>
+                                <div class="search-input-group">
+                                    <select id="modoTravessia">
+                                        <option value="emOrdem">Em Ordem (Esquerda, Raiz, Direita)</option>
+                                        <option value="preOrdem">Pre-Ordem (Raiz, Esquerda, Direita)</option>
+                                        <option value="posOrdem">Pos-Ordem (Esquerda, Direita, Raiz)</option>
+                                    </select>
+                                    <button class="btn btn-secondary" onclick="listarPorTravessia()">
+                                        <i class="fas fa-sort-numeric-down"></i> Executar Travessia
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="resultadoBusca"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== ESTRUTURAS DE DADOS ==================== -->
+            <div class="page" id="page-estruturas">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-project-diagram"></i> Estruturas de Dados Utilizadas</h3>
+                    </div>
+                    <div class="card-body estruturas-info">
+
+                        <div class="estrutura-card">
+                            <div class="estrutura-icon fila-icon"><i class="fas fa-arrow-right"></i></div>
+                            <div class="estrutura-content">
+                                <h4>Fila (Queue) - FIFO</h4>
+                                <p><strong>Uso no sistema:</strong> Organizar chamados aguardando atendimento. O primeiro chamado aberto e o primeiro a ser atendido.</p>
+                                <p><strong>Operacoes:</strong> enfileirar(), desenfileirar(), espiar()</p>
+                                <p><strong>Classe:</strong> <code>helpdesk.estruturas.Fila&lt;T&gt;</code></p>
+                            </div>
+                        </div>
+
+                        <div class="estrutura-card">
+                            <div class="estrutura-icon pilha-icon"><i class="fas fa-layer-group"></i></div>
+                            <div class="estrutura-content">
+                                <h4>Pilha (Stack) - LIFO</h4>
+                                <p><strong>Uso no sistema:</strong> Registrar historico de operacoes (criacao, atendimento, finalizacao). A operacao mais recente fica no topo.</p>
+                                <p><strong>Operacoes:</strong> empilhar(), desempilhar(), espiar()</p>
+                                <p><strong>Classe:</strong> <code>helpdesk.estruturas.Pilha&lt;T&gt;</code></p>
+                            </div>
+                        </div>
+
+                        <div class="estrutura-card">
+                            <div class="estrutura-icon lista-icon"><i class="fas fa-link"></i></div>
+                            <div class="estrutura-content">
+                                <h4>Lista Ligada (Linked List)</h4>
+                                <p><strong>Uso no sistema:</strong> Armazenar usuarios, equipamentos e todos os chamados. Permite insercao, remocao e busca dinamica.</p>
+                                <p><strong>Operacoes:</strong> adicionar(), obter(), remover(), buscar(), filtrar()</p>
+                                <p><strong>Classe:</strong> <code>helpdesk.estruturas.ListaLigada&lt;T&gt;</code></p>
+                            </div>
+                        </div>
+
+                        <div class="estrutura-card">
+                            <div class="estrutura-icon arvore-icon"><i class="fas fa-sitemap"></i></div>
+                            <div class="estrutura-content">
+                                <h4>Arvore Binaria de Busca (BST)</h4>
+                                <p><strong>Uso no sistema:</strong> Busca rapida de chamados por ID. Permite busca eficiente O(log n) e travessia em ordem.</p>
+                                <p><strong>Operacoes:</strong> inserir(), buscar(), remover(), emOrdem(), preOrdem(), posOrdem()</p>
+                                <p><strong>Classe:</strong> <code>helpdesk.estruturas.ArvoreBinaria&lt;T&gt;</code></p>
+                            </div>
+                        </div>
+
+                        <div class="estrutura-card">
+                            <div class="estrutura-icon" style="background: linear-gradient(135deg, #f39c12, #e67e22);"><i class="fas fa-sort-amount-down"></i></div>
+                            <div class="estrutura-content">
+                                <h4>Selection Sort + Busca Binaria (Diferenciais)</h4>
+                                <p><strong>Selection Sort:</strong> Algoritmo de ordenacao que seleciona o maior elemento e coloca ao final, repetindo ate ordenar todo o vetor. Usado para ordenar chamados por prioridade, ID ou setor.</p>
+                                <p><strong>Busca Binaria:</strong> Algoritmo de busca eficiente O(log n) em vetores ordenados, dividindo o espaco de busca pela metade a cada iteracao.</p>
+                                <p><strong>Undo (Desfazer):</strong> Utiliza uma segunda Pilha para armazenar acoes e permitir desfaze-las, demonstrando uso pratico de LIFO.</p>
+                                <p><strong>SLA:</strong> Sistema de controle de tempo maximo de atendimento por prioridade, calculado automaticamente.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== ORDENACAO ==================== -->
+            <div class="page" id="page-ordenacao">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-sort-amount-down"></i> Ordenacao de Chamados (Selection Sort)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box info-orange">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Algoritmo: Selection Sort</strong> - Ordena o vetor selecionando o maior elemento e colocando-o ao final, repetindo ate ordenar tudo. Complexidade O(n^2). Apos ordenar, e possivel usar <strong>Busca Binaria</strong> O(log n) no vetor ordenado.
+                        </div>
+                        <div class="search-section">
+                            <div class="search-group">
+                                <label>Criterio de Ordenacao</label>
+                                <div class="search-input-group">
+                                    <select id="criterioOrdenacao">
+                                        <option value="prioridade">Por Prioridade</option>
+                                        <option value="id">Por ID</option>
+                                        <option value="status">Por Status</option>
+                                        <option value="setor">Por Setor</option>
+                                    </select>
+                                    <button class="btn btn-primary" onclick="ordenarChamados()">
+                                        <i class="fas fa-sort"></i> Ordenar (Selection Sort)
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="search-group">
+                                <label>Busca Binaria por Prioridade (no vetor ordenado)</label>
+                                <div class="search-input-group">
+                                    <select id="buscaBinariaPrio">
+                                        <option value="1">1 - Critica</option>
+                                        <option value="2">2 - Alta</option>
+                                        <option value="3">3 - Media</option>
+                                        <option value="4">4 - Baixa</option>
+                                    </select>
+                                    <button class="btn btn-secondary" onclick="buscaBinaria()">
+                                        <i class="fas fa-search"></i> Busca Binaria
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="resultadoOrdenacao"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ==================== MODAIS ==================== -->
+
+    <!-- Modal Novo Chamado -->
+    <div class="modal-overlay" id="modalNovoChamado">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Novo Chamado</h3>
+                <button class="modal-close" onclick="fecharModal('modalNovoChamado')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoChamado" onsubmit="criarChamado(event)">
+                    <div class="form-group">
+                        <label>Titulo</label>
+                        <input type="text" id="chamadoTitulo" required placeholder="Descreva brevemente o problema">
+                    </div>
+                    <div class="form-group">
+                        <label>Descricao</label>
+                        <textarea id="chamadoDescricao" required placeholder="Detalhe o problema encontrado" rows="3"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Prioridade</label>
+                            <select id="chamadoPrioridade" required>
+                                <option value="4">Baixa</option>
+                                <option value="3" selected>Media</option>
+                                <option value="2">Alta</option>
+                                <option value="1">Critica</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Setor</label>
+                            <select id="chamadoSetor" required>
+                                <option value="TI">TI</option>
+                                <option value="RH">RH</option>
+                                <option value="Financeiro">Financeiro</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Operacoes">Operacoes</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nome do Usuario</label>
+                            <input type="text" id="chamadoUsuario" required placeholder="Seu nome completo">
+                        </div>
+                        <div class="form-group">
+                            <label>Equipamento</label>
+                            <input type="text" id="chamadoEquipamento" placeholder="Ex: Notebook Dell PAT-001">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="fecharModal('modalNovoChamado')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Criar Chamado</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Novo Usuario -->
+    <div class="modal-overlay" id="modalNovoUsuario">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> Novo Usuario</h3>
+                <button class="modal-close" onclick="fecharModal('modalNovoUsuario')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoUsuario" onsubmit="criarUsuario(event)">
+                    <div class="form-group">
+                        <label>Nome</label>
+                        <input type="text" id="usuarioNome" required placeholder="Nome completo">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="usuarioEmail" required placeholder="email@empresa.com">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Setor</label>
+                            <select id="usuarioSetor" required>
+                                <option value="TI">TI</option>
+                                <option value="RH">RH</option>
+                                <option value="Financeiro">Financeiro</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Operacoes">Operacoes</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Cargo</label>
+                            <input type="text" id="usuarioCargo" required placeholder="Cargo">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="fecharModal('modalNovoUsuario')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Cadastrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Novo Equipamento -->
+    <div class="modal-overlay" id="modalNovoEquipamento">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Novo Equipamento</h3>
+                <button class="modal-close" onclick="fecharModal('modalNovoEquipamento')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoEquipamento" onsubmit="criarEquipamento(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select id="equipTipo" required>
+                                <option value="Notebook">Notebook</option>
+                                <option value="Desktop">Desktop</option>
+                                <option value="Impressora">Impressora</option>
+                                <option value="Monitor">Monitor</option>
+                                <option value="Servidor">Servidor</option>
+                                <option value="Switch">Switch</option>
+                                <option value="Roteador">Roteador</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Marca</label>
+                            <input type="text" id="equipMarca" required placeholder="Ex: Dell, HP, Lenovo">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Patrimonio</label>
+                            <input type="text" id="equipPatrimonio" required placeholder="Ex: PAT-005">
+                        </div>
+                        <div class="form-group">
+                            <label>Setor</label>
+                            <select id="equipSetor" required>
+                                <option value="TI">TI</option>
+                                <option value="RH">RH</option>
+                                <option value="Financeiro">Financeiro</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Operacoes">Operacoes</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="fecharModal('modalNovoEquipamento')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Cadastrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Finalizar Chamado -->
+    <div class="modal-overlay" id="modalFinalizar">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-check-circle"></i> Finalizar Chamado</h3>
+                <button class="modal-close" onclick="fecharModal('modalFinalizar')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formFinalizar" onsubmit="finalizarChamado(event)">
+                    <input type="hidden" id="finalizarId">
+                    <div class="form-group">
+                        <label>Tecnico Responsavel</label>
+                        <input type="text" id="finalizarTecnico" required placeholder="Nome do tecnico">
+                    </div>
+                    <div class="form-group">
+                        <label>Solucao Aplicada</label>
+                        <textarea id="finalizarSolucao" required placeholder="Descreva a solucao aplicada" rows="4"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="fecharModal('modalFinalizar')">Cancelar</button>
+                        <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Finalizar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalhes Chamado -->
+    <div class="modal-overlay" id="modalDetalhes">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-info-circle"></i> Detalhes do Chamado</h3>
+                <button class="modal-close" onclick="fecharModal('modalDetalhes')">&times;</button>
+            </div>
+            <div class="modal-body" id="detalhesConteudo"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

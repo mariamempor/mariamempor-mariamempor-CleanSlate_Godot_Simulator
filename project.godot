@@ -1,0 +1,45 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Clean Slate - Simulador de Lavagem de Dinheiro"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7")
+
+[autoload]
+
+GameManager="*res://scripts/game_manager.gd"
+Campaign="*res://scripts/systems/campaign.gd"
+Staff="*res://scripts/systems/staff.gd"
+Lifestyle="*res://scripts/systems/lifestyle.gd"
+Portfolio="*res://scripts/systems/portfolio.gd"
+AudioManager="*res://scripts/audio_manager.gd"
+UI="*res://scripts/ui/ui_kit.gd"
+TurnManager="*res://scripts/turn_manager.gd"
+PopupManager="*res://scripts/popup_manager.gd"
+
+[display]
+
+window/size/viewport_width=1366
+window/size/viewport_height=768
+window/size/window_width_override=1366
+window/size/window_height_override=768
+window/stretch/mode="canvas_items"
+
+[gui]
+
+theme/default_font_multichannel_signed_distance_field=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.02, 0.035, 0.05, 1)
