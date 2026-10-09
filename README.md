@@ -1,4 +1,5 @@
-<img width="500" height="700" alt="gemini-svg (1)" src="https://github.com/user-attachments/assets/3e486e2e-8972-4624-b1cd-60e9ea49af4a" />
+<img width="1267" height="422" alt="Captura de tela 2026-10-09 135116" src="https://github.com/user-attachments/assets/49c70339-99f1-439b-b73a-83ee000261b9" />
+
   <!-- BANNER PRINCIPAL DO PROJETO -->
 
 
