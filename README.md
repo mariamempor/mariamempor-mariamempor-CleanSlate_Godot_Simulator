@@ -1,5 +1,5 @@
 <img width="300" height="107" alt="gemini-svg" src="https://github.com/user-attachments/assets/b4a0c2d6-23b1-4cca-a987-e36119cb84c6" />
-https://github.com/user-attachments/assets/279e1bf8-ca1c-4840-b4ae-793f9b3d6874
+
 <div align="center">
 
   <!-- BANNER PRINCIPAL DO PROJETO -->
