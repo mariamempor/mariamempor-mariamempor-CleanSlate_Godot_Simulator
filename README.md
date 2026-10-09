@@ -1,7 +1,4 @@
-<img width="300" height="107" alt="gemini-svg" src="https://github.com/user-attachments/assets/b4a0c2d6-23b1-4cca-a987-e36119cb84c6" />
-
-<div align="center">
-
+<img width="300" height="100" alt="gemini-svg (1)" src="https://github.com/user-attachments/assets/3e486e2e-8972-4624-b1cd-60e9ea49af4a" />
   <!-- BANNER PRINCIPAL DO PROJETO -->
 
 
