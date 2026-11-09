@@ -92,9 +92,9 @@ func _build(event: Dictionary) -> void:
 	var band: Color = Color("#8C2027")
 	var band_ink: Color = Color.WHITE
 	if style == "official":
-		border = Color("#B9C4CB")
-		band = Color("#26343E")
-		band_ink = Color("#E4E9ED")
+		border = Color("#C4C2C0")
+		band = Color("#36322E")
+		band_ink = Color("#EAE9E7")
 	elif style == "cartel":
 		border = Color("#7A1F24")
 		band = Color("#1A0C0E")
@@ -110,7 +110,7 @@ func _build(event: Dictionary) -> void:
 
 	var holder: PanelContainer = PanelContainer.new()
 	holder.custom_minimum_size.x = WIDTH
-	var box: StyleBoxFlat = UI.flat(Color("#0C141E"), border, 8)
+	var box: StyleBoxFlat = UI.flat(Color("#171513"), border, 8)
 	box.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
 	box.shadow_size = 24
 	holder.add_theme_stylebox_override("panel", box)
@@ -156,7 +156,7 @@ func _build(event: Dictionary) -> void:
 		col.add_child(row)
 		var photo: PanelContainer = PanelContainer.new()
 		photo.custom_minimum_size = Vector2(180, 132)
-		photo.add_theme_stylebox_override("panel", UI.flat(UI.SURFACE, Color("#314655"), 6))
+		photo.add_theme_stylebox_override("panel", UI.flat(UI.SURFACE, Color("#48443E"), 6))
 		photo.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		row.add_child(photo)
 		var wire: Label = UI.display("NEWS\nWIRE", 26, UI.CYAN)
@@ -176,7 +176,7 @@ func _build(event: Dictionary) -> void:
 
 	var rule: ColorRect = ColorRect.new()
 	rule.custom_minimum_size = Vector2(inner, 1)
-	rule.color = Color("#263846")
+	rule.color = Color("#3B3731")
 	col.add_child(rule)
 
 	if options.is_empty():

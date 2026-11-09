@@ -11,24 +11,26 @@ extends Node
 
 const W = preload("res://scripts/ui/widgets.gd")
 
-# ---------- paleta ----------
-const CYAN: Color = Color("#63E7F4")
-const CYAN_BRIGHT: Color = Color("#A9FBFF")
-const CYAN_DARK: Color = Color("#1D3B49")
-const BG: Color = Color("#061018")
-const PANEL: Color = Color("#0E1923")
-const WHITE: Color = Color("#E7F2F7")
-const MUTED: Color = Color("#8399A9")
-const DIM: Color = Color("#52646F")
-const GREEN: Color = Color("#62E3A2")
-const ORANGE: Color = Color("#FF9950")
-const RED: Color = Color("#F25555")
-const YELLOW: Color = Color("#F2C94C")
-const VIOLET: Color = Color("#B79CFF")     # Dark Web / Monero
-const INK_2: Color = Color("#BFD0DA")      # texto corrido
-const LINE: Color = Color("#1F3440")       # bordas discretas
-const SURFACE: Color = Color("#09131B")    # fundo de áreas internas
-const TRACK: Color = Color("#14232D")      # trilho de barras
+# ---------- paleta "Concreto & Latão" ----------
+# Grafite quente nas superfícies e latão como acento. Os nomes CYAN* ficaram
+# da paleta antiga (o código inteiro usa); hoje são o latão da interface.
+const CYAN: Color = Color("#E2B470")
+const CYAN_BRIGHT: Color = Color("#F6DCAE")
+const CYAN_DARK: Color = Color("#4A3B26")
+const BG: Color = Color("#100F0D")
+const PANEL: Color = Color("#1B1916")
+const WHITE: Color = Color("#ECE6DA")
+const MUTED: Color = Color("#8F8A80")
+const DIM: Color = Color("#5C5850")
+const GREEN: Color = Color("#7FD1AE")
+const ORANGE: Color = Color("#E08A4A")
+const RED: Color = Color("#E5484D")
+const YELLOW: Color = Color("#E8C25A")
+const VIOLET: Color = Color("#A99AE6")     # Dark Web / Monero
+const INK_2: Color = Color("#C9C2B4")      # texto corrido
+const LINE: Color = Color("#34302B")       # bordas discretas
+const SURFACE: Color = Color("#141210")    # fundo de áreas internas
+const TRACK: Color = Color("#24211D")      # trilho de barras
 
 # ---------- layout ----------
 const FONT_DIR: String = "res://assets/fonts/"
@@ -52,6 +54,19 @@ var font_mono_md: Font
 var theme: Theme
 
 var motion: bool = true             # Configurações > Reduzir animações desliga
+var full_night: bool = false        # Configurações > Noite completa em todo turno
+## Configurações > Qualidade gráfica. "alta" liga GI de tela, reflexos e névoa
+## volumétrica; "media" mantém a composição e economiza GPU. Padrão automático:
+## média em placa integrada, alta em placa dedicada.
+var quality: String = ""
+signal quality_changed
+
+func auto_quality() -> String:
+	return "media" if RenderingServer.get_video_adapter_type() == RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU else "alta"
+
+func set_quality(value: String) -> void:
+	quality = value
+	quality_changed.emit()
 var animating: bool = true          # false enquanto uma tela é só atualizada
 var suppress: bool = false          # true ao refazer a tela por causa de resize
 ## Último valor exibido de cada número: é de onde as contagens partem.
@@ -73,6 +88,10 @@ func _setup_fonts() -> void:
 		font_text = _vary(sans, 400.0, 100.0)
 		font_bold = _vary(sans, 600.0, 100.0)
 		font_display = _vary(sans, 600.0, 84.0)
+	# Títulos de tela em serifa: o tom de dossiê/thriller da direção de arte.
+	var serif: Font = _load_font("IBMPlexSerif-SemiBold.ttf")
+	if serif != null:
+		font_display = serif
 	else:
 		font_text = ThemeDB.fallback_font
 		var heavy: FontVariation = FontVariation.new()
@@ -110,13 +129,13 @@ func _build_theme() -> Theme:
 	t.default_font = font_text
 	t.default_font_size = 14
 
-	var tip: StyleBoxFlat = flat(Color("#0B1820"), CYAN_DARK, 6)
+	var tip: StyleBoxFlat = flat(Color("#181613"), CYAN_DARK, 6)
 	tip.set_content_margin_all(10.0)
 	t.set_stylebox("panel", "TooltipPanel", tip)
 	t.set_color("font_color", "TooltipLabel", WHITE)
 	t.set_font_size("font_size", "TooltipLabel", 12)
 
-	var field: StyleBoxFlat = flat(SURFACE, Color("#2B3A47"), 6)
+	var field: StyleBoxFlat = flat(SURFACE, Color("#3D3A35"), 6)
 	field.content_margin_left = 12.0
 	field.content_margin_right = 12.0
 	field.content_margin_top = 8.0
@@ -146,8 +165,8 @@ func _build_theme() -> Theme:
 	scroll_track.content_margin_left = 3.0
 	scroll_track.content_margin_right = 3.0
 	t.set_stylebox("scroll", "VScrollBar", scroll_track)
-	t.set_stylebox("grabber", "VScrollBar", flat(Color("#2B3A47"), Color.TRANSPARENT, 3, 0))
-	t.set_stylebox("grabber_highlight", "VScrollBar", flat(Color("#4D687B"), Color.TRANSPARENT, 3, 0))
+	t.set_stylebox("grabber", "VScrollBar", flat(Color("#3D3A35"), Color.TRANSPARENT, 3, 0))
+	t.set_stylebox("grabber_highlight", "VScrollBar", flat(Color("#6B655D"), Color.TRANSPARENT, 3, 0))
 	t.set_stylebox("grabber_pressed", "VScrollBar", flat(CYAN, Color.TRANSPARENT, 3, 0))
 	return t
 
@@ -302,7 +321,7 @@ func right(node: Label, pos: Vector2, width: float) -> Label:
 # PAINÉIS
 # =========================================================
 
-func flat(bg: Color, border: Color, radius: int = 8, border_width: int = 1) -> StyleBoxFlat:
+func flat(bg: Color, border: Color, radius: int = 3, border_width: int = 1) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = bg
 	box.border_color = border
@@ -310,11 +329,11 @@ func flat(bg: Color, border: Color, radius: int = 8, border_width: int = 1) -> S
 	box.set_corner_radius_all(radius)
 	return box
 
-func style_panel(node: Panel, bg: Color = PANEL, border: Color = LINE, radius: int = 8) -> void:
+func style_panel(node: Panel, bg: Color = PANEL, border: Color = LINE, radius: int = 3) -> void:
 	var box: StyleBoxFlat = flat(bg, border, radius)
-	box.shadow_color = Color(0.0, 0.0, 0.0, 0.30)
-	box.shadow_size = 10
-	box.shadow_offset = Vector2(0, 4)
+	box.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+	box.shadow_size = 14
+	box.shadow_offset = Vector2(0, 6)
 	node.add_theme_stylebox_override("panel", box)
 
 func panel(host: Control, pos: Vector2, panel_size: Vector2, bg: Color = PANEL, border: Color = LINE) -> Panel:
@@ -330,6 +349,13 @@ func card(host: Control, rect: Rect2, title: String = "", hint: String = "") -> 
 	var node: Panel = panel(host, rect.position, rect.size)
 	if title != "":
 		node.add_child(at(bold(title, 14, WHITE), Vector2(PAD, 14)))
+		# Marcador de latão no topo do cartão: a "aba" de uma pasta de dossiê.
+		var tab: ColorRect = ColorRect.new()
+		tab.color = Color(CYAN, 0.85)
+		tab.position = Vector2(PAD, 0)
+		tab.size = Vector2(28, 2)
+		tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		node.add_child(tab)
 	if hint != "":
 		var hint_label: Label = label(hint, 12, MUTED)
 		clip(hint_label, Vector2(PAD, 34), Vector2(rect.size.x - PAD * 2.0, 18))
@@ -340,7 +366,7 @@ func card(host: Control, rect: Rect2, title: String = "", hint: String = "") -> 
 ## O Label do valor fica em tile.get_meta("value_label").
 func tile(title: String, value: String, color: Color, tip: String = "", value_size: int = 20) -> PanelContainer:
 	var node: PanelContainer = PanelContainer.new()
-	var box: StyleBoxFlat = flat(SURFACE, LINE, 6)
+	var box: StyleBoxFlat = flat(SURFACE, LINE, 2)
 	box.set_content_margin_all(12.0)
 	node.add_theme_stylebox_override("panel", box)
 	node.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -374,7 +400,7 @@ func kv_row(host: Control, y: float, width: float, key: String, value: String, v
 	var sep: ColorRect = ColorRect.new()
 	sep.position = Vector2(x, y + 28.0)
 	sep.size = Vector2(width - x * 2.0, 1)
-	sep.color = Color("#1A2B36")
+	sep.color = Color("#2C2924")
 	sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	host.add_child(sep)
 
@@ -452,29 +478,32 @@ func icon_rect(icon_name: String, pos: Vector2, icon_size: float, tint: Color = 
 
 ## kind: "primary", "secondary", "danger", "nav" ou "nav_active".
 func style_button(node: Button, kind: String) -> void:
-	var normal: StyleBoxFlat = flat(Color("#14212C"), Color("#2B3A47"), 6)
-	var hover: StyleBoxFlat = flat(Color("#1A2D3A"), Color("#4D687B"), 6)
-	var pressed: StyleBoxFlat = flat(Color("#101A23"), Color("#4D687B"), 6)
+	var normal: StyleBoxFlat = flat(Color("#1F1D1A"), Color("#3D3A35"), 2)
+	var hover: StyleBoxFlat = flat(Color("#2A2723"), Color("#7A7266"), 2)
+	var pressed: StyleBoxFlat = flat(Color("#171512"), Color("#7A7266"), 2)
 	match kind:
 		"primary":
-			normal = flat(Color("#103D49"), CYAN, 6)
-			hover = flat(Color("#176172"), CYAN_BRIGHT, 6)
-			pressed = flat(Color("#0C323C"), CYAN, 6)
+			# Latão: fundo âmbar translúcido, filete inferior mais forte.
+			normal = flat(Color(CYAN, 0.13), Color(CYAN, 0.75), 2)
+			normal.border_width_bottom = 2
+			hover = flat(Color(CYAN, 0.24), CYAN_BRIGHT, 2)
+			hover.border_width_bottom = 2
+			pressed = flat(Color(CYAN, 0.08), CYAN, 2)
 		"danger":
-			normal = flat(Color("#3A1518"), RED, 6)
-			hover = flat(Color("#55191E"), Color("#FF8A8A"), 6)
-			pressed = flat(Color("#2B1013"), RED, 6)
+			normal = flat(Color("#3A1518"), RED, 2)
+			hover = flat(Color("#55191E"), Color("#FF8A8A"), 2)
+			pressed = flat(Color("#2B1013"), RED, 2)
 		"nav":
-			normal = flat(Color.TRANSPARENT, Color.TRANSPARENT, 6)
-			hover = flat(Color("#12202B"), Color.TRANSPARENT, 6)
-			pressed = flat(Color("#0C1720"), Color.TRANSPARENT, 6)
+			normal = flat(Color.TRANSPARENT, Color.TRANSPARENT, 2)
+			hover = flat(Color("#221F1B"), Color.TRANSPARENT, 2)
+			pressed = flat(Color("#181614"), Color.TRANSPARENT, 2)
 		"nav_active":
-			normal = flat(Color("#0F2B36"), CYAN, 6, 0)
+			normal = flat(Color(CYAN, 0.10), CYAN, 2, 0)
 			normal.border_width_left = 3
 			hover = normal
 			pressed = normal
-	var disabled: StyleBoxFlat = flat(Color("#0D161E"), Color("#1A2732"), 6)
-	var focus: StyleBoxFlat = flat(Color.TRANSPARENT, CYAN_BRIGHT, 6)
+	var disabled: StyleBoxFlat = flat(Color("#181613"), Color("#2A2622"), 2)
+	var focus: StyleBoxFlat = flat(Color.TRANSPARENT, CYAN_BRIGHT, 2)
 	for box: StyleBoxFlat in [normal, hover, pressed, disabled]:
 		box.content_margin_left = 14.0
 		box.content_margin_right = 14.0

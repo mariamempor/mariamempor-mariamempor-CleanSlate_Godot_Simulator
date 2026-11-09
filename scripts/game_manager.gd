@@ -16,7 +16,7 @@ signal stats_changed
 signal day_changed(day: int)
 
 const SAVE_PATH: String = "user://clean_slate_save.json"
-const SAVE_VERSION: int = 2
+const SAVE_VERSION: int = 4
 const MAX_TRANSACTIONS: int = 300
 const MAX_NEWS: int = 60
 
@@ -121,6 +121,9 @@ func new_game() -> void:
 	Staff.reset()
 	Lifestyle.reset()
 	Portfolio.reset()
+	Missions.reset()
+	Director.reset()
+	Missions.start_act(1)
 	total_days = Campaign.days()
 	_reset_today()
 	set_state(GameState.TUTORIAL)
@@ -145,6 +148,7 @@ func end_day() -> Dictionary:
 	var report: Dictionary = {
 		"act": Campaign.act,
 		"day": current_day,
+		"day_total": day_total,
 		"processed": float(_today["processed"]),
 		"clean": float(_today["clean"]),
 		"fees": float(_today["fees"]),
@@ -170,6 +174,7 @@ func end_day() -> Dictionary:
 			modifiers.remove_at(i)
 	for action_id: String in cooldowns.keys():
 		cooldowns[action_id] = maxi(0, int(cooldowns[action_id]) - 1)
+	Director.observe_usage()
 	for company_id: String in companies:
 		var company: Dictionary = companies[company_id]
 		company["used"] = 0.0
@@ -190,18 +195,68 @@ func end_day() -> Dictionary:
 	suspicion = clampf(suspicion - decay, 0.0, max_suspicion)
 	report["decay"] = decay
 
-	# 7. Campanha: ameaças do ato, notícias, mandado, meta e prazo. Avança o dia.
+	# 7. Objetivos e contratos: sequências, prazos e recompensas.
+	Missions.nightly(int(_today["operations"]))
+
+	# O relatório compara com a meta do ato que está fechando (antes de uma
+	# eventual passagem de ato trocar a meta e os objetivos).
+	var goal_before: float = Campaign.goal()
+	var objectives_before: Array = [Missions.objectives_done(), Missions.objectives.size()]
+	var turns_in_act: int = current_day
+
+	# 8. Campanha: ameaças do ato, notícias, mandado, meta e prazo. Avança o dia.
 	Campaign.daily_tick()
 
 	report["suspicion_end"] = suspicion
 	report["net_worth"] = net_worth()
-	report["goal"] = Campaign.goal()
+	report["goal"] = goal_before
 	report["next_day"] = current_day
 	report["next_act"] = Campaign.act
+	_report_highlights(report)
+	if Campaign.act != int(report["act"]) or Campaign.escape_active:
+		report["objectives"] = objectives_before
+		if Campaign.escape_active:
+			report["act_note"] = "Mandado de prisão: começa a Operação Fuga" if Campaign.escape_reason == "mandado" else "Meta final batida em %d turnos: começa a Operação Fuga" % turns_in_act
+		else:
+			report["act_note"] = "Ato %d concluído em %d turnos. Começa o Ato %d." % [int(report["act"]), turns_in_act, Campaign.act]
 	current_time_minutes = B.WORK_START_MINUTES
 	_reset_today()
 	end_batch()
 	return report
+
+## O que o relatório do turno destaca além dos números: objetivos concluídos,
+## contratos, laranjas em perigo, decisões pendentes e oportunidades. Quando
+## há algo aqui, a cena da noite espera o jogador ler antes de seguir.
+func _report_highlights(report: Dictionary) -> void:
+	report["log"] = Missions.take_log()
+	var critical: Array = []
+	for member_v: Variant in Staff.roster:
+		var member: Dictionary = member_v as Dictionary
+		if int(member["delation"]) >= 0:
+			critical.append("%s negocia delação" % str(member["name"]))
+		elif float(member["stress"]) >= 75.0:
+			critical.append("%s com estresse %d" % [str(member["name"]), int(member["stress"])])
+	report["critical"] = critical
+	report["pending"] = Campaign.events.size()
+	report["objectives"] = [Missions.objectives_done(), Missions.objectives.size()]
+	report["days_left"] = Campaign.days_left()
+	report["total_days"] = total_days
+	var contract: String = ""
+	for c_v: Variant in Missions.active_contracts():
+		var c: Dictionary = c_v as Dictionary
+		contract = "%s: %d%%, termina no turno %d" % [str(c["title"]), int(clampf(float(c["progress"]) / maxf(float(c["target"]), 1.0), 0.0, 1.0) * 100.0), int(c["deadline"])]
+	report["contract"] = contract
+	var chances: Array = []
+	for company_id: String in B.COMPANY_ORDER:
+		if company_status(company_id) == "sale" and price_of(company_id) <= clean_money:
+			chances.append("%s cabe no seu saldo" % str(companies[company_id]["name"]))
+			break
+	if not Missions.offered_contracts().is_empty():
+		chances.append("Contrato disponível na aba Missões")
+	report["chances"] = chances
+	var act_changed: bool = Campaign.act != int(report["act"]) or Campaign.pending_screen != "" or Campaign.ending != ""
+	report["act_changed"] = act_changed
+	report["highlight"] = act_changed or not (report["log"] as Array).is_empty() or not critical.is_empty() or (Campaign.days_left() <= 2 and not Campaign.escape_active)
 
 ## Abre o dia seguinte, depois da animação de troca de turno.
 func begin_day() -> void:
@@ -241,7 +296,7 @@ func remaining_capacity(company_id: String) -> float:
 ## Custo da operação: base - desconto de prestígio + notícias.
 func loss_of(company_id: String) -> float:
 	var company: Dictionary = companies[company_id]
-	return clampf(float(company["loss"]) - Lifestyle.loss_discount() + _modifier_sum(company_id, "loss"), 0.02, 0.60)
+	return clampf(float(company["loss"]) - Lifestyle.loss_discount() - Missions.perk("loss_discount") + _modifier_sum(company_id, "loss"), 0.02, 0.60)
 
 ## Suspeita gerada ao usar 100% da capacidade do dia.
 func risk_of(company_id: String) -> float:
@@ -266,11 +321,22 @@ func company_status(company_id: String) -> String:
 	var company: Dictionary = companies[company_id]
 	if bool(company["owned"]):
 		return "owned"
+	# Liberada antes da hora por um objetivo: à venda, sem exigência de prestígio.
+	if Missions.is_unlocked(company_id):
+		return "sale"
 	if int(company["act"]) > Campaign.act:
 		return "act"
 	if Lifestyle.prestige_tier() < int(company["prestige"]):
 		return "prestige"
 	return "sale"
+
+## Preço de compra agora (com o desconto de uma empresa liberada antes do ato).
+func price_of(company_id: String) -> float:
+	var company: Dictionary = companies[company_id]
+	var price: float = float(company["price"])
+	if Missions.is_unlocked(company_id) and int(company["act"]) > Campaign.act:
+		price *= B.EARLY_UNLOCK_PRICE
+	return snappedf(price, 1000.0)
 
 func buy_company(company_id: String) -> Dictionary:
 	if state != GameState.WORK or Campaign.escape_active:
@@ -279,7 +345,7 @@ func buy_company(company_id: String) -> Dictionary:
 	if status != "sale":
 		return {"ok": false, "message": "Esta empresa ainda não está à venda para você."}
 	var company: Dictionary = companies[company_id]
-	var price: float = float(company["price"])
+	var price: float = price_of(company_id)
 	if price > clean_money:
 		return {"ok": false, "message": "Saldo limpo insuficiente."}
 	clean_money -= price
@@ -338,6 +404,7 @@ func process_company(company_id: String, amount: float) -> Dictionary:
 	transactions.push_front(tx)
 	if transactions.size() > MAX_TRANSACTIONS:
 		transactions.resize(MAX_TRANSACTIONS)
+	Missions.on_operation(company_id, amount)
 	add_suspicion(risk)
 	touch()
 	end_batch()
@@ -390,6 +457,8 @@ func reduce_risk(action_id: String) -> Dictionary:
 	if bool(action.get("clears_wiretap", false)):
 		wiretap_days = 0
 	influence = mini(B.INFLUENCE_MAX, influence + int(action.get("influence", 0)))
+	if action_id == "doacao":
+		Missions.note("donation")
 	_advance_clock(14)
 	add_suspicion(-float(action["reduce"]))
 	end_batch()
@@ -447,6 +516,18 @@ func format_time(total_minutes: int) -> String:
 # estado em to_dict() / from_dict(). Saves da versão 1 (antes da expansão)
 # carregam o que existia e começam o resto no Ato 1.
 
+## Saves anteriores usavam prazos maiores: versão 3 tinha atos de 12, 14 e 16
+## turnos; versões 1 e 2, de 30, 45 e 60 dias. O turno atual é levado para a
+## mesma fração do prazo novo, sem mexer em dinheiro, empresas, laranjas, bens
+## ou carteira.
+func _migrate_days(version: int) -> void:
+	var old_days: Array = [12, 14, 16] if version == 3 else [30, 45, 60]
+	var act_index: int = clampi(Campaign.act, 1, 3) - 1
+	var old_total: int = int(old_days[act_index]) if version >= 2 else int(old_days[0])
+	var share: float = clampf(float(current_day - 1) / float(maxi(1, old_total)), 0.0, 1.0)
+	total_days = Campaign.days() + (B.DEADLINE_EXTENSION_DAYS if Campaign.extension_used else 0)
+	current_day = clampi(1 + int(floor(share * float(Campaign.days()))), 1, maxi(1, total_days - 1))
+
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
 
@@ -471,7 +552,9 @@ func save_game() -> bool:
 		"campaign": Campaign.to_dict(),
 		"staff": Staff.to_dict(),
 		"lifestyle": Lifestyle.to_dict(),
-		"portfolio": Portfolio.to_dict()
+		"portfolio": Portfolio.to_dict(),
+		"missions": Missions.to_dict(),
+		"director": Director.to_dict()
 	}
 	var file: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -549,9 +632,11 @@ func load_game() -> bool:
 	Lifestyle.from_dict(as_dict(data.get("lifestyle")))
 	Portfolio.from_dict(as_dict(data.get("portfolio")))
 	total_days = int(core.get("total_days", Campaign.days()))
-	if int(data.get("version", 1)) < 2:
-		total_days = Campaign.days()
-		current_day = clampi(current_day, 1, total_days)
+	var version: int = int(data.get("version", 1))
+	if version < 4:
+		_migrate_days(version)
+	Missions.from_dict(as_dict(data.get("missions")))
+	Director.from_dict(as_dict(data.get("director")))
 	_reset_today()
 	var today: Dictionary = as_dict(core.get("today"))
 	for key: String in today:

@@ -22,7 +22,7 @@ func build() -> void:
 	UI.enter(tiles, 1)
 	tiles.add_child(UI.tile("NA REDE", "%d  (%d vagas livres)" % [Staff.roster.size(), free_slots], UI.WHITE, "Laranjas contratados e vagas ainda abertas nas suas empresas.", 18))
 	tiles.add_child(UI.tile("FOLHA POR NOITE", UI.money(Staff.daily_cost()), UI.ORANGE, "Sai do saldo limpo toda noite. Se faltar, sai do sujo.", 18))
-	tiles.add_child(UI.tile("CAPACIDADE SOMADA", "+ " + UI.short_money(capacity) + " por dia", UI.CYAN, "O quanto a rede aumenta o teto diário das empresas.", 18))
+	tiles.add_child(UI.tile("CAPACIDADE SOMADA", "+ " + UI.short_money(capacity) + " por turno", UI.CYAN, "O quanto a rede aumenta o teto por turno das empresas.", 18))
 	tiles.add_child(UI.tile("ESTRESSE DA REDE", "SUBINDO" if stressed else "ALIVIANDO", UI.RED if stressed else UI.GREEN, "Com a suspeita acima de %d%%, o estresse sobe toda noite. Hoje ela está em %s." % [int(B.STAFF_STRESS_LEVEL), UI.pct(suspicion)], 18))
 
 	var top: float = UI.BODY_Y + 66.0 + UI.GAP
@@ -73,7 +73,7 @@ func _member_row(member: Dictionary, width: float) -> Control:
 		alert.color = Color(UI.RED, 0.10)
 		alert.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(alert)
-	UI.rule(row, Vector2(UI.PAD, 65), width - UI.PAD, Color("#1A2B36"))
+	UI.rule(row, Vector2(UI.PAD, 65), width - UI.PAD, Color("#2C2924"))
 
 	var company_name: String = "sem empresa"
 	if GameManager.companies.has(str(member["company"])):
@@ -81,7 +81,10 @@ func _member_row(member: Dictionary, width: float) -> Control:
 	var name_label: Label = UI.bold(str(member["name"]), 14, UI.WHITE)
 	UI.clip(name_label, Vector2(UI.PAD, 10), Vector2(width * 0.34, 20))
 	row.add_child(name_label)
-	var role: Label = UI.caps("%s / %s" % [str(member["title"]).to_upper(), company_name.to_upper()], UI.MUTED)
+	var trait_text: String = Staff.trait_name(member)
+	var role: Label = UI.caps("%s%s / %s" % [(trait_text.to_upper() + " · ") if trait_text != "" else "", str(member["title"]).to_upper(), company_name.to_upper()], UI.MUTED)
+	role.tooltip_text = str(Staff.trait_of(member).get("about", ""))
+	role.mouse_filter = Control.MOUSE_FILTER_PASS
 	UI.clip(role, Vector2(UI.PAD, 34), Vector2(width * 0.36, 14))
 	row.add_child(role)
 
@@ -129,7 +132,7 @@ func _open_member(staff_id: int) -> void:
 	var tiles: HBoxContainer = HBoxContainer.new()
 	tiles.add_theme_constant_override("separation", 10)
 	col.add_child(tiles)
-	tiles.add_child(UI.tile("CAPACIDADE", "+" + UI.short_money(float(member["capacity"])), UI.CYAN, "O que ele soma por dia à empresa."))
+	tiles.add_child(UI.tile("CAPACIDADE", "+" + UI.short_money(float(member["capacity"])), UI.CYAN, "O que ele soma por turno à empresa."))
 	tiles.add_child(UI.tile("DIÁRIA", UI.money(float(member["cost"])), UI.ORANGE, "Paga toda noite."))
 	tiles.add_child(UI.tile("LEALDADE", str(int(float(member["loyalty"]))), UI.WHITE, "Quanto maior, mais devagar o estresse sobe."))
 	tiles.add_child(UI.tile("ESTRESSE", str(int(float(member["stress"]))), UI.RED if float(member["stress"]) >= 80.0 else UI.WHITE, "Em 100, ele procura a Polícia Federal."))
@@ -206,6 +209,13 @@ func _candidates_card(rect: Rect2) -> void:
 		var chip: PanelContainer = UI.chip(str(candidate["title"]).to_upper(), UI.CYAN if int(candidate["tier"]) >= Campaign.act else UI.MUTED)
 		chip.position = Vector2(14, 36)
 		item.add_child(chip)
+		# Personalidade: chip âmbar com a explicação no tooltip.
+		if Staff.trait_name(candidate) != "":
+			var trait_chip: PanelContainer = UI.chip(Staff.trait_name(candidate).to_upper(), UI.YELLOW)
+			trait_chip.position = Vector2(14 + chip.get_combined_minimum_size().x + 8.0, 36)
+			trait_chip.tooltip_text = str(Staff.trait_of(candidate).get("about", ""))
+			trait_chip.mouse_filter = Control.MOUSE_FILTER_PASS
+			item.add_child(trait_chip)
 		item.add_child(UI.right(UI.mono("+" + UI.short_money(float(candidate["capacity"])), 16, UI.CYAN), Vector2(14, 8), iw - 28.0))
 		item.add_child(UI.right(UI.caps("POR DIA", UI.MUTED), Vector2(14, 32), iw - 28.0))
 		var facts: Label = UI.caps("DIÁRIA %s  /  LEALDADE %d" % [UI.money(float(candidate["cost"])), int(float(candidate["loyalty"]))], UI.INK_2)
@@ -229,7 +239,7 @@ func _open_hire(candidate_id: int) -> void:
 	var width: float = 560.0
 	var col: VBoxContainer = app.open_modal(width + 52.0)
 	app.modal_header(col, "CONTRATAR " + str(candidate["title"]).to_upper(), str(candidate["name"]))
-	col.add_child(UI.paragraph("Ele soma %s por dia à empresa escolhida, cobra %s por noite e a taxa de contratação é de %s. Onde ele vai trabalhar?" % [UI.money(float(candidate["capacity"])), UI.money(float(candidate["cost"])), UI.money(Staff.hire_fee(candidate))], 14, UI.INK_2, width))
+	col.add_child(UI.paragraph("Ele soma %s por turno à empresa escolhida, cobra %s por noite e a taxa de contratação é de %s. Onde ele vai trabalhar?" % [UI.money(float(candidate["capacity"])), UI.money(float(candidate["cost"])), UI.money(Staff.hire_fee(candidate))], 14, UI.INK_2, width))
 	for company_id_v: Variant in GameManager.owned_ids():
 		var company_id: String = str(company_id_v)
 		var free: int = Staff.slots_free(company_id)
@@ -245,6 +255,6 @@ func _open_hire(candidate_id: int) -> void:
 		if free <= 0:
 			UI.disable(pick, "Todas as vagas desta empresa estão ocupadas.")
 		row.add_child(pick)
-		var detail: Label = UI.label("Sem vaga" if free <= 0 else "%s  >  %s por dia  /  %d vaga(s)" % [UI.short_money(before), UI.short_money(before + float(candidate["capacity"])), free], 13, UI.DIM if free <= 0 else UI.INK_2)
+		var detail: Label = UI.label("Sem vaga" if free <= 0 else "%s  >  %s por turno  /  %d vaga(s)" % [UI.short_money(before), UI.short_money(before + float(candidate["capacity"])), free], 13, UI.DIM if free <= 0 else UI.INK_2)
 		detail.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(detail)

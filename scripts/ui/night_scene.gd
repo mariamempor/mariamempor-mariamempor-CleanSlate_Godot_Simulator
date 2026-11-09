@@ -1,5 +1,5 @@
 extends "res://scripts/ui/pixel_canvas.gd"
-## Troca de turno: uma noite inteira em poucos segundos.
+## Troca de turno: uma noite inteira em poucos segundos, com o relatório do turno.
 ##
 ## Uma cena contínua, sem cortes: o operador desliga o PC, apaga a luminária,
 ## atravessa o quarto e deita. A noite passa em time-lapse na janela (lua,
@@ -29,42 +29,61 @@ var ledger_enabled: bool = true
 var _lines: Array = []              # rótulos do fechamento, na ordem em que aparecem
 var _title: Label
 var _day_title: Label
+var _hint: Label
+## Relatório com algo importante: a cena para ao amanhecer até o jogador seguir.
+var _hold: bool = false
+var _holding: bool = false
+var _reduced: bool = false
+
+## Momento da linha do tempo (em segundos da versão completa) em que a cena
+## espera o jogador: ele já acordou e o título do novo turno está na tela.
+const HOLD_AT: float = 5.75
+const TIMELINE: float = 7.2
 
 func _ready() -> void:
 	super._ready()
 	if not ledger_enabled:
 		return
-	duration = 7.2 if UI.motion else 2.2
+	_reduced = not UI.motion
+	_hold = bool(report.get("highlight", false))
+	# A linha do tempo é sempre a da noite completa (7,2 s). A versão curta só
+	# anda mais rápido; a completa roda na primeira noite, na troca de ato ou
+	# quando o jogador escolhe nas Configurações.
+	duration = TIMELINE
+	if _reduced:
+		duration = B.NIGHT_REDUCED
+	elif not (UI.full_night or bool(report.get("act_changed", false)) or int(report.get("day_total", 2)) <= 1):
+		speed = TIMELINE / B.NIGHT_SHORT
 	_build_ledger()
 
 # ---------------------------------------------------------
-# Fechamento do dia (texto por cima da cena)
+# Relatório do turno (texto por cima da cena)
 # ---------------------------------------------------------
 
 func _build_ledger() -> void:
 	var view: Vector2 = get_viewport_rect().size
-	var width: float = 400.0
+	var width: float = 420.0
 	var panel: PanelContainer = PanelContainer.new()
-	var box: StyleBoxFlat = UI.flat(Color(0.024, 0.055, 0.082, 0.90), UI.LINE, 8)
+	var box: StyleBoxFlat = UI.flat(Color(0.024, 0.055, 0.082, 0.92), UI.LINE, 8)
 	box.set_content_margin_all(20.0)
 	panel.add_theme_stylebox_override("panel", box)
 	panel.custom_minimum_size.x = width
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	var col: VBoxContainer = VBoxContainer.new()
-	col.add_theme_constant_override("separation", 9)
+	col.add_theme_constant_override("separation", 7)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(col)
 
-	col.add_child(UI.caps("ATO %d  /  FECHAMENTO" % int(report.get("act", 1)), UI.CYAN, 11))
-	_title = UI.display("DIA %02d" % int(report.get("day", 1)), 34, UI.WHITE)
+	col.add_child(UI.caps("ATO %d  /  RELATÓRIO DO TURNO" % int(report.get("act", 1)), UI.CYAN, 11))
+	_title = UI.display("TURNO %02d" % int(report.get("day", 1)), 32, UI.WHITE)
 	col.add_child(_title)
-	col.add_child(UI.spacer(2))
 
 	var rows: Array = []
 	var operations: int = int(report.get("operations", 0))
-	rows.append([("Processado em 1 operação" if operations == 1 else "Processado em %d operações" % operations) if operations > 0 else "Nenhuma operação hoje", UI.money(float(report.get("processed", 0.0))), UI.ORANGE if operations > 0 else UI.MUTED])
-	rows.append(["Entrou no saldo limpo", "+ " + UI.money(float(report.get("clean", 0.0))), UI.GREEN])
+	rows.append([("Processado em 1 operação" if operations == 1 else "Processado em %d operações" % operations) if operations > 0 else "Nenhuma operação neste turno", UI.money(float(report.get("processed", 0.0))), UI.ORANGE if operations > 0 else UI.MUTED])
+	if float(report.get("clean", 0.0)) > 0.0:
+		rows.append(["Entrou no saldo limpo", "+ " + UI.money(float(report["clean"])), UI.GREEN])
 	if float(report.get("wages", 0.0)) > 0.0:
 		rows.append(["Folha dos laranjas", "- " + UI.money(float(report["wages"])), UI.WHITE])
 	if absf(float(report.get("yield", 0.0))) >= 1.0:
@@ -76,68 +95,141 @@ func _build_ledger() -> void:
 	var after: float = float(report.get("suspicion_end", 0.0))
 	rows.append(["Suspeita", "%s  >  %s" % [UI.pct(before), UI.pct(after)], UI.risk_color(after)])
 	var goal: float = maxf(float(report.get("goal", 1.0)), 1.0)
-	rows.append(["Patrimônio", "%s  (%d%%)" % [UI.short_money(float(report.get("net_worth", 0.0))), int(clampf(float(report.get("net_worth", 0.0)) / goal, 0.0, 1.0) * 100.0)], UI.CYAN])
+	rows.append(["Patrimônio", "%s  (%d%% da meta)" % [UI.short_money(float(report.get("net_worth", 0.0))), int(clampf(float(report.get("net_worth", 0.0)) / goal, 0.0, 1.0) * 100.0)], UI.CYAN])
 	for row_v: Variant in rows:
 		var row: Array = row_v as Array
-		var line: HBoxContainer = UI.kv_line(str(row[0]), str(row[1]), row[2])
-		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		col.add_child(line)
-		_lines.append(line)
+		_add(col, UI.kv_line(str(row[0]), str(row[1]), row[2]))
 
-	# Avisos: o que deu errado na noite e o que espera uma decisão.
-	var warnings: Array[String] = []
+	# Seções que só aparecem quando há o que dizer.
+	if str(report.get("act_note", "")) != "":
+		_section(col, "CAMPANHA", UI.GREEN)
+		_note(col, str(report["act_note"]), UI.GREEN, width)
+	var done: Array = []
+	var failed: Array = []
+	for entry_v: Variant in report.get("log", []) as Array:
+		var entry: Dictionary = entry_v as Dictionary
+		(done if str(entry["kind"]) == "done" else failed).append(entry)
+	if not done.is_empty() or not failed.is_empty():
+		_section(col, "OBJETIVOS", UI.GREEN)
+		for entry_v: Variant in done.slice(0, 4):
+			_note(col, "+ %s" % str((entry_v as Dictionary)["title"]), UI.GREEN, width, str((entry_v as Dictionary)["reward"]))
+		for entry_v: Variant in failed.slice(0, 2):
+			_note(col, "x %s" % str((entry_v as Dictionary)["title"]), UI.RED, width, str((entry_v as Dictionary)["reward"]))
+
+	var warnings: Array = []
+	for item_v: Variant in (report.get("critical", []) as Array).slice(0, 2):
+		warnings.append(str(item_v))
 	if bool(report.get("pile", false)):
-		warnings.append("Dinheiro sujo parado chamou atenção: suspeita +%d." % int(B.PILE_PENALTY))
+		warnings.append("Dinheiro sujo parado chamou atenção: suspeita +%d" % int(B.PILE_PENALTY))
 	if int(report.get("unpaid", 0)) > 0:
-		warnings.append("%d laranja(s) ficaram sem pagamento." % int(report["unpaid"]))
-	if not Campaign.events.is_empty():
-		warnings.append("%d assunto(s) esperando a sua decisão." % Campaign.events.size())
-	for warning: String in warnings:
-		var label: Label = UI.paragraph(warning, 13, UI.ORANGE, width - 40.0)
-		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		col.add_child(label)
-		_lines.append(label)
-	panel.position = Vector2(48, 44) if UI.motion else Vector2((view.x - width) * 0.5, 150)
+		warnings.append("%d laranja(s) sem pagamento" % int(report["unpaid"]))
+	var left: int = int(report.get("days_left", 99))
+	if left <= 2 and not bool(report.get("act_changed", false)) and not Campaign.escape_active:
+		warnings.append("Prazo do ato: %s" % ("último turno" if left <= 0 else "faltam %d turnos" % (left + 1)))
+	if not warnings.is_empty():
+		_section(col, "ATENÇÃO", UI.ORANGE)
+		for warning_v: Variant in warnings:
+			_note(col, str(warning_v), UI.ORANGE, width)
 
-	# Título do novo dia, no alto à direita, quando amanhece.
-	_day_title = UI.display("", 46, UI.WHITE)
-	_day_title.size = Vector2(320, 60)
-	_day_title.position = Vector2(view.x - 368.0, 40)
+	var next: Array = []
+	if int(report.get("pending", 0)) > 0:
+		next.append("%d decisão(ões) esperando você" % int(report["pending"]))
+	if str(report.get("contract", "")) != "":
+		next.append("Contrato " + str(report["contract"]))
+	var objectives: Array = report.get("objectives", [0, 0]) as Array
+	if objectives.size() == 2 and int(objectives[1]) > 0 and not bool(report.get("act_changed", false)):
+		next.append("Objetivos do ato: %d de %d" % [int(objectives[0]), int(objectives[1])])
+	for chance_v: Variant in (report.get("chances", []) as Array).slice(0, 2):
+		next.append(str(chance_v))
+	if not next.is_empty():
+		_section(col, "PRÓXIMO TURNO", UI.CYAN)
+		for item_v: Variant in next:
+			_note(col, str(item_v), UI.INK_2, width)
+
+	panel.position = Vector2(48, 36) if not _reduced else Vector2((view.x - width) * 0.5, 110)
+
+	# Título do novo turno, no alto à direita, quando amanhece.
+	_day_title = UI.display("", 44, UI.WHITE)
+	_day_title.size = Vector2(360, 60)
+	_day_title.position = Vector2(view.x - 408.0, 40)
 	_day_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_day_title.modulate.a = 0.0
 	_day_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if Campaign.ending == "" and not Campaign.escape_active:
-		_day_title.text = "ATO %d  /  DIA %02d" % [int(report.get("next_act", 1)), int(report.get("next_day", 1))]
+		_day_title.text = "ATO %d  /  TURNO %02d" % [int(report.get("next_act", 1)), int(report.get("next_day", 1))]
 	add_child(_day_title)
 
-	var hint: Label = UI.caps("CLIQUE OU ESPAÇO PARA PULAR", Color(1, 1, 1, 0.35), 10)
-	hint.position = Vector2(view.x - 250.0, view.y - 34.0)
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(hint)
+	_hint = UI.caps("CLIQUE OU ESPAÇO PARA PULAR", Color(1, 1, 1, 0.35), 10)
+	_hint.position = Vector2(view.x - 330.0, view.y - 34.0)
+	_hint.size = Vector2(300, 16)
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_hint)
 	_update_ledger()
 
+func _add(col: VBoxContainer, node: Control) -> void:
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(node)
+	_lines.append(node)
+
+func _section(col: VBoxContainer, caption: String, color: Color) -> void:
+	var gap: Control = UI.spacer(2)
+	_add(col, gap)
+	_add(col, UI.caps(caption, color, 10))
+
+func _note(col: VBoxContainer, text: String, color: Color, width: float, detail: String = "") -> void:
+	_add(col, UI.paragraph(text, 13, color, width - 40.0))
+	if detail != "":
+		_add(col, UI.paragraph(detail, 11, UI.MUTED, width - 52.0))
+
 func _process(delta: float) -> void:
+	# Relatório importante: a noite para ao amanhecer e espera o jogador.
+	if _hold and not _holding and not _reduced and t >= HOLD_AT and t < TIMELINE:
+		_start_hold()
+	elif _hold and not _holding and _reduced and t >= duration - 0.05:
+		_start_hold()
 	super._process(delta)
 	_update_ledger()
+
+func _start_hold() -> void:
+	_holding = true
+	playing = false
+	if _hint != null:
+		_hint.text = "CLIQUE OU ESPAÇO PARA CONTINUAR"
+		_hint.add_theme_color_override("font_color", UI.CYAN)
+		UI.pulse(_hint, 0.55, 1.0)
+
+## Pular: primeiro vai até o ponto de espera (se houver), depois encerra.
+func skip() -> void:
+	if not skippable:
+		return
+	if _hold and not _holding:
+		t = HOLD_AT if not _reduced else duration - 0.05
+		_start_hold()
+		return
+	super.skip()
+
+func is_holding() -> bool:
+	return _holding
 
 func _update_ledger() -> void:
 	if not ledger_enabled:
 		return
 	# As linhas aparecem uma a uma enquanto a noite passa.
-	var start: float = 1.3 if UI.motion else 0.0
-	var step: float = 0.32 if UI.motion else 0.0
+	var start: float = 1.0 if not _reduced else 0.0
+	var step: float = 0.16 if not _reduced else 0.0
 	for i: int in range(_lines.size()):
 		var node: Control = _lines[i]
-		node.modulate.a = clampf((t - start - float(i) * step) / 0.25, 0.0, 1.0) if UI.motion else 1.0
+		node.modulate.a = clampf((t - start - float(i) * step) / 0.25, 0.0, 1.0) if not _reduced else 1.0
 	if _day_title != null:
-		_day_title.modulate.a = span(5.0, 5.5) if UI.motion else 0.0
+		_day_title.modulate.a = span(5.0, 5.5) if not _reduced else 0.0
 
 # ---------------------------------------------------------
 # Cena
 # ---------------------------------------------------------
 
 func _paint() -> void:
-	if not UI.motion:
+	if _reduced:
 		return
 	# night: 0 no começo da noite, 1 ao amanhecer.
 	var night: float = span(2.6, 4.8)

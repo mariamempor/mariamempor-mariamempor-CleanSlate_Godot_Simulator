@@ -10,7 +10,7 @@ func build() -> void:
 
 	var cols: Array = _columns(w)
 	var captions: Array = ["EMPRESA", "CAPACIDADE DE HOJE", "CUSTO", "RISCO NO TETO", "LARANJAS"]
-	var tips: Array = ["", "Quanto ainda dá para processar hoje. Volta ao total toda manhã.", "Fatia do valor que se perde na operação.", "Suspeita gerada se você usar 100% da capacidade do dia.", "Vagas ocupadas e capacidade que eles somam."]
+	var tips: Array = ["", "Quanto ainda dá para processar hoje. Volta ao total a cada turno.", "Fatia do valor que se perde na operação.", "Suspeita gerada se você usar 100% da capacidade do turno.", "Vagas ocupadas e capacidade que eles somam."]
 	for i: int in range(captions.size()):
 		var caption: Label = UI.caps(str(captions[i]), UI.MUTED)
 		caption.position = Vector2(float(cols[i]), UI.BODY_Y + 2.0)
@@ -61,14 +61,14 @@ func _row(company_id: String, pos: Vector2, row_size: Vector2, cols: Array, orde
 	var capacity: float = GameManager.capacity_of(company_id)
 	var cap_w: float = float(cols[2]) - float(cols[1]) - 28.0
 	if owned and blocked > 0:
-		panel.add_child(UI.at(UI.mono("PARADA POR %d DIA(S)" % blocked, 13, UI.RED), Vector2(float(cols[1]), mid - 9.0)))
+		panel.add_child(UI.at(UI.mono("PARADA POR %d TURNO(S)" % blocked, 13, UI.RED), Vector2(float(cols[1]), mid - 9.0)))
 	elif owned:
 		var room: float = GameManager.remaining_capacity(company_id)
 		panel.add_child(UI.at(UI.mono("%s de %s" % [UI.short_money(room), UI.short_money(capacity)], 13, UI.CYAN if room >= B.MIN_OPERATION else UI.MUTED), Vector2(float(cols[1]), mid - 20.0)))
 		UI.bar(panel, Vector2(float(cols[1]), mid + 8.0), cap_w, room / maxf(capacity, 1.0), UI.CYAN, "", 6.0)
 	else:
-		panel.add_child(UI.at(UI.mono(UI.short_money(capacity) + " por dia", 13, UI.MUTED), Vector2(float(cols[1]), mid - 20.0)))
-		panel.add_child(UI.at(UI.caps("PREÇO: " + UI.money(float(d["price"])), UI.INK_2), Vector2(float(cols[1]), mid + 5.0)))
+		panel.add_child(UI.at(UI.mono(UI.short_money(capacity) + " por turno", 13, UI.MUTED), Vector2(float(cols[1]), mid - 20.0)))
+		panel.add_child(UI.at(UI.caps("PREÇO: " + UI.money(GameManager.price_of(company_id)), UI.INK_2), Vector2(float(cols[1]), mid + 5.0)))
 
 	# Custo (com o desconto de prestígio já aplicado) e risco no teto.
 	var loss: float = GameManager.loss_of(company_id)
@@ -100,14 +100,14 @@ func _row(company_id: String, pos: Vector2, row_size: Vector2, cols: Array, orde
 		"owned":
 			var operate: Button = UI.button_at(panel, button_pos, button_size, "OPERAR", func() -> void: _open_operation(company_id), true, "play")
 			if blocked > 0:
-				UI.disable(operate, "Empresa parada por mais %d dia(s)." % blocked)
+				UI.disable(operate, "Empresa parada por mais %d turno(s)." % blocked)
 			elif GameManager.remaining_capacity(company_id) < B.MIN_OPERATION:
 				UI.disable(operate, "A capacidade de hoje acabou. Volta amanhã.")
 			elif GameManager.dirty_money < B.MIN_OPERATION:
 				UI.disable(operate, "Não há saldo sujo para processar.")
 		"sale":
 			var buy: Button = UI.button_at(panel, button_pos, button_size, "COMPRAR", func() -> void: _confirm_buy(company_id), true, "money")
-			var missing: float = float(d["price"]) - GameManager.clean_money
+			var missing: float = GameManager.price_of(company_id) - GameManager.clean_money
 			if missing > 0.0:
 				UI.disable(buy, "Faltam %s de saldo limpo." % UI.money(missing))
 		"prestige":
@@ -157,7 +157,7 @@ func _open_operation(company_id: String) -> void:
 		"tiles": [
 			["CAPACIDADE RESTANTE", UI.short_money(room), UI.CYAN, "Quanto esta empresa ainda processa hoje."],
 			["CUSTO", UI.pct_short(loss * 100.0), UI.ORANGE, "A parte do valor que se perde."],
-			["RISCO NO TETO", UI.signed(risk), UI.RED, "Suspeita ao usar 100% da capacidade do dia."]
+			["RISCO NO TETO", UI.signed(risk), UI.RED, "Suspeita ao usar 100% da capacidade do turno."]
 		],
 		"field": "VALOR DA OPERAÇÃO",
 		"max": limit,
@@ -174,7 +174,7 @@ func _confirm_buy(company_id: String) -> void:
 	app.confirm_modal({
 		"kicker": "COMPRA DE EMPRESA",
 		"title": str(d["name"]),
-		"text": "%s\n\nPreço: %s do saldo limpo. A empresa processa %s por dia, com custo de %d%% e risco no teto de %s. O valor pago continua contando como patrimônio." % [str(d["description"]), UI.money(float(d["price"])), UI.money(float(d["capacity"])), int(round(float(d["loss"]) * 100.0)), UI.signed(float(d["risk"]))],
+		"text": "%s\n\nPreço: %s do saldo limpo. A empresa processa %s por turno, com custo de %d%% e risco no teto de %s. O valor pago continua contando como patrimônio." % [str(d["description"]), UI.money(GameManager.price_of(company_id)), UI.money(float(d["capacity"])), int(round(float(d["loss"]) * 100.0)), UI.signed(float(d["risk"]))],
 		"confirm": "COMPRAR",
 		"on_confirm": func() -> void: report(GameManager.buy_company(company_id))
 	})

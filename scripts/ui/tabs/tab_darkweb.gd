@@ -99,7 +99,7 @@ func _liquidate_card(rect: Rect2) -> void:
 		var row: Control = Control.new()
 		row.custom_minimum_size = Vector2(0, 54)
 		list.add_child(row)
-		UI.rule(row, Vector2(UI.PAD, 53), row_w - UI.PAD, Color("#1A2B36"))
+		UI.rule(row, Vector2(UI.PAD, 53), row_w - UI.PAD, Color("#2C2924"))
 		var name_label: Label = UI.bold(str(entry[0]), 13, UI.WHITE)
 		UI.clip(name_label, Vector2(UI.PAD, 7), Vector2(row_w - UI.PAD - 100.0, 18))
 		row.add_child(name_label)

@@ -35,8 +35,8 @@ func _noise(index: int, salt: int = 0) -> float:
 
 func _draw_menu(view: Vector2) -> void:
 	# Céu: do azul quase preto, no alto, a um azul mais claro no horizonte.
-	var top: Color = Color("#040A18")
-	var low: Color = Color("#12233F")
+	var top: Color = Color("#0F0E0D")
+	var low: Color = Color("#2D2924")
 	var bands: int = 18
 	for i: int in range(bands):
 		var f: float = float(i) / float(bands - 1)
@@ -55,9 +55,9 @@ func _draw_menu(view: Vector2) -> void:
 	draw_rect(Rect2(moon + Vector2(UNIT * 1.0, UNIT * 3.0), Vector2(UNIT, UNIT)), Color("#C3C9BC"))
 
 	# Duas fileiras de prédios: uma distante, mais clara, e uma próxima, mais escura.
-	_skyline(view, 11, view.y * 0.34, Color("#0E1C33"), 0.10, 0.5)
-	_skyline(view, 23, view.y * 0.24, Color("#070F1D"), 0.30, 1.0)
-	draw_rect(Rect2(0, view.y - UNIT * 3.0, view.x, UNIT * 3.0), Color("#04080F"))
+	_skyline(view, 11, view.y * 0.34, Color("#24211D"), 0.10, 0.5)
+	_skyline(view, 23, view.y * 0.24, Color("#141210"), 0.30, 1.0)
+	draw_rect(Rect2(0, view.y - UNIT * 3.0, view.x, UNIT * 3.0), Color("#0A0A09"))
 
 ## Uma fileira de prédios ao longo da base da tela.
 func _skyline(view: Vector2, salt: int, max_height: float, color: Color, lit: float, glow: float) -> void:
@@ -85,14 +85,14 @@ func _skyline(view: Vector2, salt: int, max_height: float, color: Color, lit: fl
 		if glow >= 1.0 and h > max_height * 0.82:
 			draw_rect(Rect2(x + floorf(float(cols) * 0.5) * UNIT, top - UNIT * 4.0, UNIT, UNIT * 4.0), color)
 			if int(floor(pulse * 1.2 + float(index))) % 2 == 0:
-				draw_rect(Rect2(x + floorf(float(cols) * 0.5) * UNIT, top - UNIT * 5.0, UNIT, UNIT), Color("#F25555"))
+				draw_rect(Rect2(x + floorf(float(cols) * 0.5) * UNIT, top - UNIT * 5.0, UNIT, UNIT), Color("#E5484D"))
 		x += w + floorf(_noise(index, salt + 5) * 2.0) * UNIT
 		index += 1
 
 ## framed = true desenha a moldura do dashboard (grade a partir do menu lateral
 ## e a linha sob o topo). As outras telas usam só a grade ("plain").
 func _draw_dashboard(view: Vector2, framed: bool) -> void:
-	draw_rect(Rect2(Vector2.ZERO, view), Color("#061018"))
+	draw_rect(Rect2(Vector2.ZERO, view), Color("#100F0D"))
 	var left: float = SIDEBAR_W if framed else 0.0
 	for x: int in range(int(left), int(view.x), 34):
 		draw_line(Vector2(x, 0), Vector2(x, view.y), Color(0.12, 0.25, 0.30, 0.07), 1.0)

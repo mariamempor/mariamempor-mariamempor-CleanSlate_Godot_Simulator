@@ -11,6 +11,7 @@ const B = preload("res://scripts/data/balance.gd")
 ## [rótulo, id, ícone]. A Dark Web só aparece na Operação Fuga.
 const TABS: Array = [
 	["VISÃO GERAL", "overview", "overview"],
+	["MISSÕES", "missions", "missions"],
 	["EMPRESAS", "companies", "companies"],
 	["LARANJAS", "staff", "staff"],
 	["BENS", "lifestyle", "lifestyle"],
@@ -35,19 +36,35 @@ const HELP: Dictionary = {
 			["Suspeita", "Sobe a cada operação e perde {decay}% do valor a cada noite ({decay3}% no Ato 3). No limite do ato, a campanha acaba."]
 		],
 		"how": [
-			"Leia o topo da tela: dia, caixa, suspeita e patrimônio ficam visíveis em todas as abas.",
+			"Leia o topo da tela: turno, caixa, suspeita e patrimônio ficam visíveis em todas as abas.",
 			"Siga o próximo passo sugerido no rodapé ou escolha uma aba no menu.",
-			"Quando terminar o que queria fazer no dia, clique em Finalizar turno."
+			"Quando terminar o que queria fazer no turno, clique em Finalizar turno. O ato termina assim que a meta é batida, mesmo antes do prazo."
+		]
+	},
+	"missions": {
+		"title": "MISSÕES",
+		"subtitle": "Objetivos do ato e contratos do cliente.",
+		"lead": "A meta de patrimônio decide quando o ato acaba. Os objetivos e contratos decidem como você chega lá: cada um paga uma recompensa, e alguns dão vantagens que valem até o fim da campanha.",
+		"terms": [
+			["Objetivo principal", "A meta de patrimônio do ato. Bater a meta encerra o ato na mesma noite, mesmo antes do prazo."],
+			["Objetivos do ato", "Sorteados no começo de cada ato, de acordo com a sua situação. Concluir paga na hora; concluir todos dá o bônus de Ato impecável."],
+			["Contratos", "Pedidos avulsos do cliente, com prazo curto. Disponível: você pode aceitar. Em andamento: o prazo corre. Falhar cobra uma penalidade."],
+			["Vantagens", "Recompensas permanentes, como custo menor nas empresas ou chance menor de interceptação na fuga."]
+		],
+		"how": [
+			"Leia os objetivos no começo do ato: eles mostram o caminho mais curto até a meta.",
+			"Aceite contratos que combinem com o que você já ia fazer no turno.",
+			"No Ato 3, financie as etapas de Preparar a saída: elas pesam na fuga."
 		]
 	},
 	"companies": {
 		"title": "EMPRESAS DE FACHADA",
 		"subtitle": "Onde o saldo sujo vira saldo limpo.",
-		"lead": "Cada empresa processa um valor por dia. Elas diferem em capacidade, custo e risco, e escolher quais usar, e quanto, é o centro do jogo.",
+		"lead": "Cada empresa processa um valor por turno. Elas diferem em capacidade, custo e risco, e escolher quais usar, e quanto, é o centro do jogo.",
 		"terms": [
-			["Capacidade de hoje", "Quanto a empresa ainda aceita processar neste dia. Volta ao total toda manhã. Laranjas aumentam o total."],
+			["Capacidade de hoje", "Quanto a empresa ainda aceita processar neste turno. Volta ao total a cada turno. Laranjas aumentam o total."],
 			["Custo", "A parte que se perde. Com custo de 12%, de R$ 10.000 chegam R$ 8.800 ao saldo limpo. O prestígio reduz o custo."],
-			["Risco no teto", "Pontos de suspeita gerados se você usar 100% da capacidade do dia. Usar metade gera metade."],
+			["Risco no teto", "Pontos de suspeita gerados se você usar 100% da capacidade do turno. Usar metade gera metade."],
 			["Empresas à venda", "Negócios maiores aparecem a cada ato. Alguns exigem um nível de prestígio para abrir as portas."]
 		],
 		"how": [
@@ -61,14 +78,14 @@ const HELP: Dictionary = {
 		"subtitle": "Gente que empresta o nome para a operação crescer.",
 		"lead": "Um laranja soma capacidade à empresa em que trabalha, sem aumentar o risco no teto. Em troca, cobra uma diária e pode quebrar sob pressão.",
 		"terms": [
-			["Capacidade", "Quanto ele acrescenta, por dia, à empresa em que foi alocado."],
+			["Capacidade", "Quanto ele acrescenta, por turno, à empresa em que foi alocado."],
 			["Diária", "Custo por noite. Sai do saldo limpo; se faltar, do sujo. Sem pagamento, o estresse dispara."],
 			["Lealdade", "Quanto maior, mais devagar o estresse sobe."],
 			["Estresse", "Com a suspeita acima de {stress_level}%, sobe toda noite. Abaixo disso, alivia. Um agrado baixa o estresse na hora."],
 			["Delação premiada", "Com estresse 100, o laranja procura a Polícia Federal. Você tem {delation_days} noites para intervir, ou a campanha termina com você preso."]
 		],
 		"how": [
-			"Escolha um candidato do dia e clique em Contratar.",
+			"Escolha um candidato do turno e clique em Contratar.",
 			"Aloque na empresa em que a capacidade extra rende mais.",
 			"Vigie o estresse. Em uma delação, as saídas são pagar o silêncio, exilar (pago em cripto) ou descartar."
 		]
@@ -119,7 +136,7 @@ const HELP: Dictionary = {
 		"subtitle": "O que mudou no ambiente, e por quanto tempo.",
 		"lead": "Notícias mexem de verdade no jogo: aumentam a capacidade de uma empresa, encarecem as operações ou elevam a suspeita por alguns dias.",
 		"terms": [
-			["Efeitos ativos", "O que está valendo agora e por quantos dias ainda."],
+			["Efeitos ativos", "O que está valendo agora e por quantos turnos ainda. Notícias, decisões e crises entram aqui."],
 			["Histórico", "Tudo o que já aconteceu na campanha, do mais recente ao mais antigo."]
 		],
 		"how": [
@@ -134,7 +151,7 @@ const HELP: Dictionary = {
 		"terms": [
 			["Limite do ato", "100% nos atos 1 e 2. No Ato 3, o cartel age aos 90%."],
 			["Mandado de prisão", "Nos atos 2 e 3, {mandado_days} noites seguidas com a suspeita acima de {mandado_level}% geram um mandado e iniciam a fuga antes da hora."],
-			["Ações de controle", "Reduzem a suspeita, custam saldo limpo e têm dias de espera entre um uso e outro."],
+			["Ações de controle", "Reduzem a suspeita, custam saldo limpo e têm turnos de espera entre um uso e outro."],
 			["Influência", "A partir do Ato 2, doações eleitorais rendem influência. Cada ponto faz a suspeita cair mais rápido toda noite."]
 		],
 		"how": [
@@ -166,9 +183,9 @@ const MANUAL: Array = [
 		"title": "Três atos e uma saída",
 		"body": "Você é o consultor de uma operação fictícia. O cliente entrega dinheiro sujo toda noite, e você tem um prazo para transformar isso em patrimônio limpo, sem chamar atenção demais.",
 		"points": [
-			"Ato 1: {goal1} em {days1} dias, com pequenos negócios locais.",
-			"Ato 2: {goal2} em {days2} dias. Entram a política e a Polícia Federal.",
-			"Ato 3: {goal3} em {days3} dias. Bater essa meta inicia a Operação Fuga.",
+			"Ato 1: {goal1} em até {days1} turnos, com pequenos negócios locais.",
+			"Ato 2: {goal2} em até {days2} turnos. Entram a política e a Polícia Federal.",
+			"Ato 3: {goal3} em até {days3} turnos. Bater essa meta inicia a Operação Fuga.",
 			"O fim da campanha depende das suas escolhas: há cinco finais."
 		],
 		"map": ["all", -1],
@@ -179,23 +196,24 @@ const MANUAL: Array = [
 		"title": "Como ler a tela",
 		"body": "O painel tem quatro áreas fixas. Elas nunca mudam de lugar.",
 		"points": [
-			"Menu lateral: troca de módulo. As teclas de 1 a 8 fazem o mesmo.",
-			"Topo: dia, caixa, suspeita e patrimônio, visíveis em todas as abas.",
+			"Menu lateral: troca de módulo. As teclas de 1 a 9 fazem o mesmo.",
+			"Topo: turno, caixa, suspeita e patrimônio, visíveis em todas as abas.",
 			"Centro: o módulo aberto. O botão Como funciona explica cada um.",
-			"Rodapé: o próximo passo sugerido e o botão Finalizar turno."
+			"Rodapé: o próximo passo sugerido e o botão Finalizar turno.",
+			"O painel abre quando você senta no computador. Fora dele: WASD para andar pelo quarto, E para interagir, ESC para voltar ao PC."
 		],
 		"map": ["all", -1],
 		"map_note": "As quatro áreas fixas do painel."
 	},
 	{
 		"nav": "O turno",
-		"title": "O que acontece em um dia",
-		"body": "Cada dia é um turno. Você age quanto quiser e, quando terminar, finaliza o turno. A noite faz o resto.",
+		"title": "O que acontece em um turno",
+		"body": "Cada turno é um ciclo de decisões. Você age quanto quiser e, ao finalizar, a noite fecha as contas e traz o que vem pela frente.",
 		"points": [
-			"De dia: processe saldo sujo nas empresas. Cada uma tem um teto diário.",
+			"No turno: processe saldo sujo, contrate, compre, invista e avance nos objetivos da aba Missões.",
 			"À noite: os laranjas recebem, a suspeita perde {decay}% do valor e chega uma nova remessa.",
-			"Dinheiro sujo parado por muitos dias chama atenção e eleva a suspeita.",
-			"A troca de turno mostra o fechamento do dia, linha por linha."
+			"Quase toda noite traz uma decisão: crise, oportunidade, contrato ou ameaça. As escolhas têm consequências nos turnos seguintes.",
+			"O relatório do turno mostra o resultado, objetivos concluídos e o que pede atenção."
 		],
 		"map": ["footer", -1],
 		"map_note": "Finalizar turno fica no rodapé, à direita."

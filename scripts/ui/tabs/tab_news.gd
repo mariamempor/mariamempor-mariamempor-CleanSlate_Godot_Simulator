@@ -24,7 +24,7 @@ func _log_card(rect: Rect2) -> void:
 	var w: float = rect.size.x
 	var entries: Array = GameManager.news_log
 	if entries.is_empty():
-		empty_state(card, Rect2(0, 56, w, rect.size.y - 56.0), "Nada aconteceu ainda. As notícias aparecem aqui conforme os dias passam.")
+		empty_state(card, Rect2(0, 56, w, rect.size.y - 56.0), "Nada aconteceu ainda. As notícias aparecem aqui conforme os turnos passam.")
 		return
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.position = Vector2(1, 58)
@@ -49,7 +49,7 @@ func _log_card(rect: Rect2) -> void:
 		stripe.size = Vector2(3, 50)
 		stripe.color = accent
 		row.add_child(stripe)
-		UI.rule(row, Vector2(UI.PAD, 71), row_w - UI.PAD, Color("#1A2B36"))
+		UI.rule(row, Vector2(UI.PAD, 71), row_w - UI.PAD, Color("#2C2924"))
 		var chip: PanelContainer = UI.chip(str(item.get("tag", "")), accent)
 		chip.position = Vector2(UI.PAD + 4.0, 8)
 		row.add_child(chip)
@@ -106,5 +106,5 @@ func _effects_card(rect: Rect2) -> void:
 		text.position = Vector2(UI.PAD + 16.0, y)
 		card.add_child(text)
 		y += maxf(20.0, UI.text_height(text, w - UI.PAD * 2.0 - 16.0)) + 2.0
-		card.add_child(UI.at(UI.caps("MAIS %d DIA(S)" % int(line[1]), line[2]), Vector2(UI.PAD + 16.0, y)))
+		card.add_child(UI.at(UI.caps("MAIS %d TURNO(S)" % int(line[1]), line[2]), Vector2(UI.PAD + 16.0, y)))
 		y += 30.0

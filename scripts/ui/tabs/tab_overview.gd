@@ -21,7 +21,7 @@ func build() -> void:
 	var right_w: float = w - UI.GAP - left_w
 
 	# Volume processado por dia, lido das transações reais.
-	var chart_card: Panel = UI.card(self, Rect2(0, row_y, left_w, row_h), "Processado por dia", "Soma das operações de cada turno")
+	var chart_card: Panel = UI.card(self, Rect2(0, row_y, left_w, row_h), "Processado por turno", "Soma das operações de cada turno")
 	UI.enter(chart_card, 5)
 	var data: Dictionary = _daily_totals()
 	if bool(data["any"]):
@@ -33,7 +33,7 @@ func build() -> void:
 		chart.texts = data["texts"]
 		chart.highlight = (data["values"] as Array).size() - 1
 		chart.bar_color = UI.CYAN
-		chart.grid_color = Color("#1D303B")
+		chart.grid_color = Color("#302D28")
 		chart.text_color = UI.WHITE
 		chart.label_color = UI.MUTED
 		chart.font = UI.font_mono
@@ -84,20 +84,22 @@ func _act_card(rect: Rect2) -> void:
 	card.add_child(UI.right(UI.label("%s de %s" % [UI.short_money(GameManager.net_worth()), UI.short_money(Campaign.goal())], 12, UI.MUTED), Vector2(UI.PAD, 72), w - UI.PAD * 2.0))
 	UI.bar(card, Vector2(UI.PAD, 106), w - UI.PAD * 2.0, ratio, UI.GREEN, "bar_ov_goal", 10.0)
 	var missing: float = maxf(0.0, Campaign.goal() - GameManager.net_worth())
-	var left: int = Campaign.days_left()
-	var note: String = "Meta batida. Finalize o turno para avançar."
+	var left: int = Campaign.days_left() + 1
+	var note: String = "Meta batida. Finalize o turno para avançar de ato."
 	var note_color: Color = UI.GREEN
 	if missing > 0.0:
-		note = "Faltam %s e %d dias." % [UI.short_money(missing), left]
+		note = "Faltam %s e %s." % [UI.short_money(missing), "este é o último turno" if left <= 1 else "%d turnos" % left]
 		note_color = UI.MUTED
-		if left > 0 and left <= 5:
+		if left <= 3:
 			note_color = UI.ORANGE
-		elif left > 0:
-			note += " Ritmo necessário: %s por dia." % UI.short_money(missing / float(left))
+		note += " Ritmo: %s por turno." % UI.short_money(missing / float(maxi(1, left)))
 	var note_label: Label = UI.label(note, 12, note_color)
 	UI.clip(note_label, Vector2(UI.PAD, 126), Vector2(w - UI.PAD * 2.0, 18))
 	card.add_child(note_label)
 	card.add_child(UI.at(UI.caps("AMEAÇA: " + str(data["threat"]).to_upper(), UI.RED), Vector2(UI.PAD, 150)))
+	if not Missions.objectives.is_empty():
+		var objectives: Label = UI.caps("OBJETIVOS %d / %d" % [Missions.objectives_done(), Missions.objectives.size()], UI.CYAN)
+		card.add_child(UI.right(objectives, Vector2(UI.PAD, 150), w - UI.PAD * 2.0))
 
 ## Números do dia: o que entra à noite, o que ainda dá para processar, o que custa.
 func _today_card(rect: Rect2) -> void:
@@ -118,11 +120,56 @@ func _today_card(rect: Rect2) -> void:
 		rows.append(["Influência política", "%d de %d" % [GameManager.influence, B.INFLUENCE_MAX], UI.WHITE])
 	# Em janelas baixas, o cartão encolhe: as linhas se aproximam e, se preciso, as últimas somem.
 	var row_step: float = clampf((rect.size.y - 52.0) / float(rows.size()), 30.0, 36.0)
+	var last_y: float = 46.0
 	for i: int in range(rows.size()):
 		var line_y: float = 46.0 + float(i) * row_step
 		if line_y + 30.0 > rect.size.y:
 			break
 		UI.kv_row(card, line_y, rect.size.x, str(rows[i][0]), str(rows[i][1]), rows[i][2])
+		last_y = line_y
+
+	# Plano do turno: as pendências do dia, na ordem em que costumam ser resolvidas.
+	var plan_y: float = last_y + row_step + 6.0
+	if plan_y + 24.0 <= rect.size.y:
+		card.add_child(UI.at(UI.caps("PLANO DO TURNO", UI.MUTED), Vector2(UI.PAD, plan_y - 6.0)))
+		var step_y: float = plan_y + 14.0
+		for step_v: Variant in _turn_plan():
+			if step_y + 20.0 > rect.size.y:
+				break
+			var step: Dictionary = step_v as Dictionary
+			var done: bool = bool(step["done"])
+			var mark: String = "✓" if done else "→"
+			var color: Color = UI.DIM if done else (UI.RED if bool(step.get("urgent", false)) else UI.CYAN)
+			card.add_child(UI.at(UI.caps(mark, color, 12), Vector2(UI.PAD, step_y)))
+			var label: Label = UI.label(str(step["text"]), 12, UI.MUTED if done else UI.WHITE)
+			UI.clip(label, Vector2(UI.PAD + 22.0, step_y - 2.0), Vector2(rect.size.x - UI.PAD * 2.0 - 22.0, 18))
+			card.add_child(label)
+			step_y += 20.0
+
+## As pendências do dia, em ordem de prioridade. Cada item é {text, done, urgent}.
+func _turn_plan() -> Array:
+	var plan: Array = []
+	var room: float = 0.0
+	for company_id: String in GameManager.owned_ids():
+		room += GameManager.remaining_capacity(company_id)
+	var dirty_left: bool = GameManager.dirty_money >= B.MIN_OPERATION and room >= B.MIN_OPERATION
+	plan.append({"text": "Processar %s de saldo sujo" % UI.short_money(minf(GameManager.dirty_money, room)), "done": not dirty_left, "urgent": dirty_left})
+	if GameManager.suspicion >= B.STAFF_STRESS_LEVEL:
+		plan.append({"text": "Baixar a suspeita (%d%%): laranjas estão se estressando" % int(GameManager.suspicion), "done": false, "urgent": true})
+	else:
+		plan.append({"text": "Suspeita sob controle (%d%%)" % int(GameManager.suspicion), "done": true})
+	var offers: int = Missions.offered_contracts().size()
+	var delating: int = Staff.delating().size()
+	if delating > 0:
+		plan.append({"text": "%d laranja(ns) negociando delação: intervenha" % delating, "done": false, "urgent": true})
+	if offers > 0:
+		plan.append({"text": "%d contrato(s) disponível(is) na aba Missões" % offers, "done": false})
+	if Missions.objectives_done() < Missions.objectives.size():
+		plan.append({"text": "Objetivos do ato: %d de %d concluídos" % [Missions.objectives_done(), Missions.objectives.size()], "done": false})
+	if Campaign.goal_reached():
+		plan.append({"text": "Meta do ato batida: finalize para avançar", "done": false, "urgent": true})
+	plan.append({"text": "Finalizar o turno", "done": false})
+	return plan
 
 func _escape_card(rect: Rect2) -> void:
 	var card: Panel = UI.card(self, rect, "Operação Fuga", "Só o Monero sai do país com você")

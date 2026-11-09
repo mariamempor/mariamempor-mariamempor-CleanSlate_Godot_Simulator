@@ -151,7 +151,7 @@ func convert_to_monero() -> Dictionary:
 		return {"ok": false, "message": "Não há tempo para mais um lote."}
 	GameManager.begin_batch()
 	GameManager.clean_money -= amount
-	monero += amount * (1.0 - B.ESCAPE_MONERO_FEE)
+	monero += amount * (1.0 - maxf(0.0, B.ESCAPE_MONERO_FEE - Missions.perk("monero_fee")))
 	GameManager.touch()
 	Campaign.escape_spend(B.ESCAPE_HOURS_CONVERT)
 	GameManager.end_batch()
@@ -176,7 +176,7 @@ func daily_tick() -> float:
 		if balance <= 0.0:
 			continue
 		var swing: float = float(fund["swing"])
-		var gain: float = balance * (float(fund["yield"]) + rng.randf_range(-swing, swing))
+		var gain: float = balance * (float(fund["yield"]) + Missions.perk("yield") + rng.randf_range(-swing, swing))
 		funds[fund_id] = balance + gain
 		earned += gain
 	return earned
