@@ -216,6 +216,23 @@ Chuva, cidade, tensão que cresce com a suspeita, coração no limite, helicópt
 
 ---
 
+## 🧭 Estrutura da versão reestruturada
+
+A versão atual combina a gestão pelo terminal com um apartamento e uma cidade exploráveis em 3D. Os principais componentes estão organizados por responsabilidade:
+
+| Caminho | Conteúdo |
+| :--- | :--- |
+| `scenes/` | Cenas de entrada e do mundo 3D. |
+| `scripts/world/` | Apartamento, cidade, celular, cutscenes, ambientes e objetos interativos. |
+| `scripts/systems/` | Campanha, acontecimentos, missões, empresas, carteira, equipe e estilo de vida. |
+| `scripts/ui/` | Terminal de gestão, abas, minigames e cenas de noite e encerramento. |
+| `assets/models/`, `assets/textures/`, `assets/shaders/` | Modelos 3D, materiais e efeitos visuais usados no cenário. |
+| `tests/tools/` | Ferramentas para catalogar recursos, medir cenas e observar desempenho. |
+
+Essa divisão mantém a rotina em 3D separada dos sistemas de campanha e da interface, facilitando localizar cada parte do projeto.
+
+---
+
 ## 🚀 Como Executar o Projeto
 
 1. Faça o download do **[Godot Engine 4.7](https://godotengine.org/download)**.
