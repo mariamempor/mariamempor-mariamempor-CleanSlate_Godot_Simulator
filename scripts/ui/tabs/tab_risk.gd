@@ -60,7 +60,7 @@ func _level_card(rect: Rect2) -> void:
 
 	var y: float = 308.0
 	if GameManager.wiretap_days > 0 and y + 40.0 < rect.size.y:
-		var tap: Label = UI.paragraph("Grampo ativo por mais %d dia(s): cada operação gera %d%% mais suspeita. A Varredura eletrônica remove." % [GameManager.wiretap_days, int(B.WIRETAP_RISK * 100.0)], 13, UI.RED, w - UI.PAD * 2.0)
+		var tap: Label = UI.paragraph("Grampo ativo por mais %d turno(s): cada operação gera %d%% mais suspeita. A Varredura eletrônica remove." % [GameManager.wiretap_days, int(B.WIRETAP_RISK * 100.0)], 13, UI.RED, w - UI.PAD * 2.0)
 		tap.position = Vector2(UI.PAD, y)
 		card.add_child(tap)
 		y += 46.0
@@ -75,7 +75,7 @@ func _level_card(rect: Rect2) -> void:
 			if row_y + 30.0 > rect.size.y:
 				break
 			var tx: Dictionary = heavy[i] as Dictionary
-			UI.kv_row(card, row_y, w, "%s, dia %02d" % [str(tx.get("company", "")), int(tx.get("day", 0))], UI.signed(float(tx.get("risk", 0.0))), UI.RED)
+			UI.kv_row(card, row_y, w, "%s, turno %02d" % [str(tx.get("company", "")), int(tx.get("day", 0))], UI.signed(float(tx.get("risk", 0.0))), UI.RED)
 
 func _actions_card(rect: Rect2) -> void:
 	var w: float = rect.size.x
@@ -109,7 +109,7 @@ func _actions_card(rect: Rect2) -> void:
 		var wait: int = GameManager.action_cooldown(action_id)
 		var clears: bool = bool(action.get("clears_wiretap", false))
 		if i > 0:
-			UI.rule(card, Vector2(UI.PAD, y - 4.0), w - UI.PAD * 2.0, Color("#1A2B36"))
+			UI.rule(card, Vector2(UI.PAD, y - 4.0), w - UI.PAD * 2.0, Color("#2C2924"))
 		var name_label: Label = UI.bold(str(action["name"]), 15, UI.WHITE)
 		name_label.position = Vector2(UI.PAD, y + 4.0)
 		name_label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -119,7 +119,7 @@ func _actions_card(rect: Rect2) -> void:
 		if int(action.get("influence", 0)) > 0:
 			effect += "  +%d influência" % int(action["influence"])
 		card.add_child(UI.at(UI.mono("%s   %s" % [effect, UI.money(cost)], 13, UI.INK_2), Vector2(UI.PAD, y + 27.0)))
-		var foot: String = "ESPERA DE %d DIA(S) ENTRE USOS" % int(action["cooldown"]) if int(action["cooldown"]) > 0 else "SEM ESPERA"
+		var foot: String = "ESPERA DE %d TURNO(S) ENTRE USOS" % int(action["cooldown"]) if int(action["cooldown"]) > 0 else "SEM ESPERA"
 		if reduce > 0.0:
 			foot = "%s POR PONTO  /  %s" % [UI.short_money(cost / reduce).to_upper(), foot]
 		var foot_label: Label = UI.caps(foot, UI.MUTED, 9)
@@ -133,9 +133,9 @@ func _actions_card(rect: Rect2) -> void:
 
 		var apply: Button = UI.button_at(card, Vector2(w - UI.PAD - 116.0, y + 10.0), Vector2(116, 38), "APLICAR", func() -> void: report(GameManager.reduce_risk(action_id)), true, "risk")
 		if wait > 0:
-			apply.text = "EM %d DIA(S)" % wait
+			apply.text = "EM %d TURNO(S)" % wait
 			apply.icon = null
-			UI.disable(apply, "Disponível de novo em %d dia(s)." % wait)
+			UI.disable(apply, "Disponível de novo em %d turno(s)." % wait)
 		elif clears and GameManager.wiretap_days <= 0:
 			UI.disable(apply, "Não há grampo ativo.")
 		elif cost > GameManager.clean_money:

@@ -1,5 +1,5 @@
 extends Node
-## TurnManager — as cenas em pixel art entre uma tela e outra.
+## TurnManager — as cenas entre uma tela e outra (3D no jogo, pixel art nos testes).
 ##
 ## play_transition: a noite que separa dois turnos, com o fechamento do dia.
 ## play_ending:     a cena final da campanha.
@@ -8,6 +8,8 @@ extends Node
 
 const NightScene = preload("res://scripts/ui/night_scene.gd")
 const EndingScene = preload("res://scripts/ui/ending_scene.gd")
+const NightScene3D = preload("res://scripts/ui/night_scene_3d.gd")
+const EndingScene3D = preload("res://scripts/ui/ending_scene_3d.gd")
 
 var running: bool = false
 
@@ -15,7 +17,11 @@ func play_transition(host: Control, report: Dictionary) -> void:
 	if running:
 		return
 	running = true
-	var scene: Control = NightScene.new()
+	# Com o mundo 3D presente, a noite é no quarto de verdade; sem ele (testes), em pixel art.
+	var world: Variant = host.get("world")
+	var scene: Control = (NightScene3D if world != null else NightScene).new()
+	if world != null:
+		scene.set("world", world)
 	scene.set("report", report)
 	host.add_child(scene)
 	await scene.finished
@@ -38,7 +44,10 @@ func play_ending(host: Control, ending_id: String) -> void:
 	if running:
 		return
 	running = true
-	var scene: Control = EndingScene.new()
+	var world: Variant = host.get("world")
+	var scene: Control = (EndingScene3D if world != null else EndingScene).new()
+	if world != null:
+		scene.set("world", world)
 	scene.set("ledger_enabled", false)
 	scene.set("kind", ending_kind(ending_id))
 	host.add_child(scene)

@@ -25,7 +25,7 @@ func _crypto_card(rect: Rect2) -> void:
 	UI.sparkline(card, Vector2(UI.PAD, 128), Vector2(w - UI.PAD * 2.0, chart_h), Portfolio.price_history, UI.CYAN)
 
 	var y: float = 128.0 + chart_h + 22.0
-	UI.rule(card, Vector2(UI.PAD, y - 10.0), w - UI.PAD * 2.0, Color("#1A2B36"))
+	UI.rule(card, Vector2(UI.PAD, y - 10.0), w - UI.PAD * 2.0, Color("#2C2924"))
 	card.add_child(UI.at(UI.caps("SUA POSIÇÃO", UI.MUTED), Vector2(UI.PAD, y)))
 	var value: Label = UI.mono("", 24, UI.CYAN)
 	value.position = Vector2(UI.PAD, y + 16.0)

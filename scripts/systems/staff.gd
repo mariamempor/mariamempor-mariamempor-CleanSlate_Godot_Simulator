@@ -87,10 +87,20 @@ func discard_loss(member: Dictionary) -> float:
 
 ## Quanto o estresse deste laranja muda na próxima noite, com a suspeita atual.
 func stress_forecast(member: Dictionary) -> float:
-	var suspicion: float = GameManager.suspicion
+	return _stress_change(member, GameManager.suspicion)
+
+func _stress_change(member: Dictionary, suspicion: float) -> float:
 	if suspicion <= B.STAFF_STRESS_LEVEL:
 		return -B.STAFF_STRESS_RELIEF
-	return maxf(1.0, B.STAFF_STRESS_BASE + (suspicion - B.STAFF_STRESS_LEVEL) / 5.0 - float(member["loyalty"]) / 25.0)
+	var growth: float = maxf(1.0, B.STAFF_STRESS_BASE + (suspicion - B.STAFF_STRESS_LEVEL) / 5.0 - float(member["loyalty"]) / 25.0)
+	return growth * float(trait_of(member).get("stress", 1.0))
+
+## Traço de personalidade (B.STAFF_TRAITS). Saves antigos não têm: {}.
+func trait_of(member: Dictionary) -> Dictionary:
+	return B.STAFF_TRAITS.get(str(member.get("trait", "")), {}) as Dictionary
+
+func trait_name(member: Dictionary) -> String:
+	return str(trait_of(member).get("name", ""))
 
 # ---------------------------------------------------------
 # Candidatos
@@ -119,11 +129,18 @@ func _make_candidate() -> Dictionary:
 	# Quem rende mais costuma cobrar mais, mas nem sempre: aí estão os bons negócios.
 	var price_point: float = clampf(quality + rng.randf_range(-0.3, 0.3), 0.0, 1.0)
 	var capacity: float = snappedf(lerpf(float(capacity_range[0]), float(capacity_range[1]), quality), 1000.0)
-	var cost: float = snappedf(lerpf(float(cost_range[0]), float(cost_range[1]), price_point), 50.0)
+	var cost: float = snappedf(lerpf(float(cost_range[0]), float(cost_range[1]), price_point) * (1.0 - Missions.perk("staff_cost")), 50.0)
 	var first: String = str(B.STAFF_FIRST_NAMES[rng.randi_range(0, B.STAFF_FIRST_NAMES.size() - 1)])
 	var last: String = str(B.STAFF_LAST_NAMES[rng.randi_range(0, B.STAFF_LAST_NAMES.size() - 1)])
+	# Traço fixo por pessoa: vem do id, sem gastar sorteio (a simulação de
+	# balanceamento continua com a mesma sequência de números).
+	var trait_id: String = str(B.STAFF_TRAIT_ORDER[(_next_id * 7 + 3) % B.STAFF_TRAIT_ORDER.size()])
+	var traits: Dictionary = B.STAFF_TRAITS[trait_id]
+	capacity = snappedf(capacity * float(traits["capacity"]), 1000.0)
+	cost = snappedf(cost * float(traits["cost"]), 50.0)
 	var candidate: Dictionary = {
 		"id": _next_id,
+		"trait": trait_id,
 		"name": "%s %s" % [first, last],
 		"tier": int(tier["tier"]),
 		"title": str(tier["title"]),
@@ -136,6 +153,24 @@ func _make_candidate() -> Dictionary:
 	}
 	_next_id += 1
 	return candidate
+
+## Recompensa de objetivo: um candidato acima da média, com diária camarada.
+func add_elite_candidate() -> void:
+	var candidate: Dictionary = _make_candidate()
+	var tier: Dictionary = B.STAFF_TIERS[clampi(Campaign.act, 1, B.STAFF_TIERS.size()) - 1]
+	candidate["tier"] = int(tier["tier"])
+	candidate["title"] = str(tier["title"])
+	candidate["capacity"] = snappedf(float((tier["capacity"] as Array)[1]) * 1.15, 1000.0)
+	candidate["cost"] = snappedf(float((tier["cost"] as Array)[0]) * (1.0 - Missions.perk("staff_cost")), 50.0)
+	candidate["loyalty"] = 85.0
+	candidate["name"] = str(candidate["name"]) + " (indicação)"
+	candidates.push_front(candidate)
+
+## Recompensa de objetivo: as diárias de quem já está na rede caem.
+func apply_cost_cut(share: float) -> void:
+	for member_v: Variant in roster:
+		var member: Dictionary = member_v as Dictionary
+		member["cost"] = snappedf(float(member["cost"]) * (1.0 - share), 50.0)
 
 # ---------------------------------------------------------
 # Ações do jogador
@@ -168,8 +203,9 @@ func give_bonus(staff_id: int) -> Dictionary:
 		return {"ok": false, "message": "Agrado indisponível."}
 	if not GameManager.spend_clean(bonus_cost(member)):
 		return {"ok": false, "message": "Saldo limpo insuficiente."}
-	member["stress"] = maxf(0.0, float(member["stress"]) - B.STAFF_BONUS_STRESS)
+	member["stress"] = maxf(0.0, float(member["stress"]) - B.STAFF_BONUS_STRESS * float(trait_of(member).get("bonus", 1.0)))
 	member["loyalty"] = minf(100.0, float(member["loyalty"]) + B.STAFF_BONUS_LOYALTY)
+	Missions.note("care")
 	GameManager.touch()
 	return {"ok": true, "message": "%s ficou mais tranquilo." % str(member["name"])}
 
@@ -222,12 +258,14 @@ func resolve_delation(staff_id: int, choice: String) -> Dictionary:
 				member["delation"] = -1
 				member["stress"] = 30.0
 				member["loyalty"] = minf(100.0, float(member["loyalty"]) + 25.0)
+				Missions.note("care", 2.0)
 				result = {"ok": true, "message": "%s recuou da delação." % member_name}
 		"exile":
 			if not Portfolio.spend_crypto(exile_cost(member)):
 				result = {"ok": false, "message": "Cripto insuficiente para o exílio."}
 			else:
 				roster.erase(member)
+				Missions.note("care", 2.0)
 				result = {"ok": true, "message": "%s embarcou para o exterior." % member_name}
 		"discard":
 			var company_id: String = str(member["company"])
@@ -236,7 +274,7 @@ func resolve_delation(staff_id: int, choice: String) -> Dictionary:
 				GameManager.companies[company_id]["blocked"] = B.DELATION_DISCARD_BLOCK
 			roster.erase(member)
 			GameManager.add_suspicion(B.DELATION_DISCARD_SUSPICION)
-			result = {"ok": true, "message": "%s foi descartado. A empresa fica parada por %d dias." % [member_name, B.DELATION_DISCARD_BLOCK]}
+			result = {"ok": true, "message": "%s foi descartado. A empresa fica parada por %d turnos." % [member_name, B.DELATION_DISCARD_BLOCK]}
 	GameManager.touch()
 	GameManager.end_batch()
 	return result
@@ -270,7 +308,7 @@ func delation_options(member: Dictionary) -> Array:
 		},
 		{
 			"label": "DESCARTAR",
-			"detail": "Sem custo direto: perde %s retidos, %s para por %d dias e a suspeita sobe %d pontos." % [GameManager.format_money(discard_loss(member)), company_name, B.DELATION_DISCARD_BLOCK, int(B.DELATION_DISCARD_SUSPICION)],
+			"detail": "Sem custo direto: perde %s retidos, %s para por %d turnos e a suspeita sobe %d pontos." % [GameManager.format_money(discard_loss(member)), company_name, B.DELATION_DISCARD_BLOCK, int(B.DELATION_DISCARD_SUSPICION)],
 			"enabled": true,
 			"danger": true,
 			"action": func() -> Dictionary: return resolve_delation(staff_id, "discard")
@@ -331,11 +369,11 @@ func daily_tick() -> Dictionary:
 			member["loyalty"] = maxf(0.0, float(member["loyalty"]) - B.STAFF_UNPAID_LOYALTY)
 
 		# Estresse: sobe com a suspeita alta, alivia com a suspeita baixa.
-		if suspicion > B.STAFF_STRESS_LEVEL:
-			member["stress"] = float(member["stress"]) + maxf(1.0, B.STAFF_STRESS_BASE + (suspicion - B.STAFF_STRESS_LEVEL) / 5.0 - float(member["loyalty"]) / 25.0)
-		else:
-			member["stress"] = float(member["stress"]) - B.STAFF_STRESS_RELIEF
-		member["stress"] = clampf(float(member["stress"]), 0.0, 100.0)
+		member["stress"] = clampf(float(member["stress"]) + _stress_change(member, suspicion), 0.0, 100.0)
+		# Quem fala demais deixa rastro toda noite.
+		var leak: float = float(trait_of(member).get("leak", 0.0))
+		if leak > 0.0:
+			GameManager.suspicion = clampf(GameManager.suspicion + leak, 0.0, GameManager.max_suspicion)
 
 		if float(member["stress"]) >= 100.0:
 			member["delation"] = B.DELATION_DEADLINE
@@ -363,7 +401,9 @@ func _clean_member(raw: Dictionary) -> Dictionary:
 		"loyalty": float(raw.get("loyalty", 50.0)),
 		"stress": float(raw.get("stress", 0.0)),
 		"company": str(raw.get("company", "")),
-		"delation": int(raw.get("delation", -1))
+		"delation": int(raw.get("delation", -1)),
+		# Saves de antes da personalidade não têm traço: ficam sem.
+		"trait": str(raw.get("trait", "")) if B.STAFF_TRAITS.has(str(raw.get("trait", ""))) else ""
 	}
 
 func from_dict(data: Dictionary) -> void:

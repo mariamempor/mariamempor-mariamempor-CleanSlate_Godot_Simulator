@@ -43,6 +43,10 @@ func _ready() -> void:
 	Lifestyle.buy("relogio"); Lifestyle.buy("seda"); Lifestyle.buy("gravura")
 	GameManager.process_company("bar", 20000.0)
 	m.switch_tab("overview"); await _shot("10_overview", 1.6)
+	Missions.make_offer()
+	var accepted: Dictionary = Missions.make_offer()
+	Missions.accept_contract(int(accepted["uid"]))
+	m.switch_tab("missions"); await _shot("10b_missoes", 1.4)
 	m.switch_tab("staff"); await _shot("11_laranjas", 1.2)
 	m.content._open_member(int(Staff.roster[0]["id"])); await _shot("12_modal_laranja", 0.6)
 	m.close_modal(true)
@@ -71,15 +75,36 @@ func _ready() -> void:
 	PopupManager.show_event(Lifestyle._audit_event()); await _shot("24_popup_malha_fina", 0.6)
 	PopupManager.clear_popup()
 	Staff.resolve_delation(int(victim["id"]), "silence_dirty")
+	PopupManager.show_event(Director._ev_investidor()); await _shot("25_popup_investidor", 0.6)
+	PopupManager.clear_popup()
+	PopupManager.show_event(Director._contract_popup(Missions.make_offer())); await _shot("26_popup_contrato", 0.6)
+	PopupManager.clear_popup()
+	PopupManager.show_event(Director._ev_concentracao("bar")); await _shot("27_popup_concentracao", 0.6)
+	PopupManager.clear_popup()
 	# troca de turno: quadros em varios momentos
 	m.switch_tab("overview")
+	GameManager.process_company("bar", 5000.0)
 	m.end_turn()
 	var last: float = 0.0
-	for tt: float in [0.25, 0.8, 1.7, 2.9, 3.7, 4.5, 5.6, 6.6, 7.0]:
+	for tt: float in [0.3, 0.9, 1.5, 2.2, 2.9, 3.6]:
 		await _wait(tt - last); last = tt
 		await _snap("30_turno_%.2f" % tt)
+	await _wait(2.4)
+	await _snap("30_turno_relatorio")
+	var guard: int = 0
+	while TurnManager.running and guard < 20:
+		guard += 1
+		for child: Node in m.get_children():
+			if child.has_method("is_holding"):
+				child.call("skip")
+		await _wait(0.3)
 	await _wait(1.5)
-	PopupManager.clear_popup(); await _wait(0.3); PopupManager.clear_popup(); await _wait(0.3)
+	await _snap("31_popup_da_noite")
+	var popups: int = 0
+	while (PopupManager.is_open() or m._flow_busy) and popups < 12:
+		popups += 1
+		PopupManager.clear_popup()
+		await _wait(0.3)
 	await _shot("31_depois_do_turno", 1.2)
 	# ato 2
 	GameManager.clean_money += 3000000.0

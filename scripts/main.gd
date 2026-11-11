@@ -15,6 +15,7 @@ const W = preload("res://scripts/ui/widgets.gd")
 
 const TAB_SCRIPTS: Dictionary = {
 	"overview": preload("res://scripts/ui/tabs/tab_overview.gd"),
+	"missions": preload("res://scripts/ui/tabs/tab_missions.gd"),
 	"companies": preload("res://scripts/ui/tabs/tab_companies.gd"),
 	"staff": preload("res://scripts/ui/tabs/tab_staff.gd"),
 	"lifestyle": preload("res://scripts/ui/tabs/tab_lifestyle.gd"),
@@ -40,11 +41,16 @@ var modal_accept: Callable = Callable()
 var history: Dictionary = {"dirty": [], "clean": [], "worth": [], "suspicion": []}
 
 var _screen: String = ""            # menu, tutorial, dashboard, act, escape, settings, credits, end
+## O mundo 3D (scenes/world.tscn) se registra aqui. Quando presente, ele decide
+## quando a interface aparece (sentado no PC) ou some (jogador a pé no quarto).
+## Sem tipo de propósito: walking() é dele, e tipar como Node geraria erro.
+var world = null
 var _toasts: Array = []
 var _modal: Control
 var _dock_time: Label
 var _built_size: Vector2 = Vector2.ZERO
 var _relayout_queued: bool = false
+var _refresh_pending: bool = false  # dados mudaram com uma janela aberta
 var _flow_busy: bool = false        # troca de turno, popups ou final em andamento
 
 func _ready() -> void:
@@ -53,6 +59,8 @@ func _ready() -> void:
 	_setup_root()
 	GameManager.stats_changed.connect(_on_stats_changed)
 	Campaign.ending_reached.connect(_on_ending_reached)
+	Missions.completed.connect(_on_mission_completed)
+	Campaign.apply_settings()
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	show_menu()
 	AudioManager.play_ambient()
@@ -67,6 +75,8 @@ func _process(_delta: float) -> void:
 		_dock_time.text = time_text
 
 func _unhandled_input(event: InputEvent) -> void:
+	if world != null and world.walking() and not world.overlay_active():
+		return
 	var key: InputEventKey = event as InputEventKey
 	if key == null or not key.pressed or key.echo or _flow_busy or PopupManager.is_open():
 		return
@@ -188,7 +198,7 @@ func toast(message: String, color: Color = UI.CYAN) -> void:
 	if message == "":
 		return
 	var card: PanelContainer = PanelContainer.new()
-	var box: StyleBoxFlat = UI.flat(Color("#0B1820"), Color(color, 0.55), 6)
+	var box: StyleBoxFlat = UI.flat(Color("#181613"), Color(color, 0.55), 6)
 	box.border_width_left = 3
 	box.content_margin_left = 14.0
 	box.content_margin_right = 16.0
@@ -281,7 +291,7 @@ func open_modal(width: float, border: Color = UI.CYAN) -> VBoxContainer:
 	var holder: PanelContainer = PanelContainer.new()
 	holder.custom_minimum_size.x = width
 	holder.mouse_filter = Control.MOUSE_FILTER_STOP
-	var box: StyleBoxFlat = UI.flat(Color("#0C151E"), border, 10)
+	var box: StyleBoxFlat = UI.flat(Color("#171513"), border, 10)
 	box.set_content_margin_all(26.0)
 	box.shadow_color = Color(0.0, 0.0, 0.0, 0.5)
 	box.shadow_size = 24
@@ -304,6 +314,9 @@ func open_modal(width: float, border: Color = UI.CYAN) -> VBoxContainer:
 	return col
 
 func close_modal(instant: bool = false) -> void:
+	if _refresh_pending:
+		_refresh_pending = false
+		refresh.call_deferred()
 	modal_accept = Callable()
 	var root: Control = _modal
 	_modal = null
@@ -523,7 +536,7 @@ func show_menu() -> void:
 	sub.position = Vector2(62, 124)
 	main_layer.add_child(sub)
 	UI.enter(sub, 3, Vector2(-14, 0))
-	UI.rule(main_layer, Vector2(60, 156), 420.0, Color("#294856"))
+	UI.rule(main_layer, Vector2(60, 156), 420.0, Color("#464039"))
 	var dot: ColorRect = ColorRect.new()
 	dot.position = Vector2(62, 173)
 	dot.size = Vector2(7, 7)
@@ -667,7 +680,7 @@ func show_tutorial(step: int) -> void:
 	UI.enter(hint, 1, Vector2(-12, 0))
 
 	var panel_size: Vector2 = Vector2(view.x - 144.0, view.y - 122.0 - 96.0)
-	var panel: Panel = UI.panel(main_layer, Vector2(72, 122), panel_size, UI.PANEL, Color("#28414D"))
+	var panel: Panel = UI.panel(main_layer, Vector2(72, 122), panel_size, UI.PANEL, Color("#4E3F2A"))
 	UI.enter(panel, 2)
 	var rail_w: float = 250.0
 	for i: int in range(T.MANUAL.size()):
@@ -701,7 +714,7 @@ func show_tutorial(step: int) -> void:
 	screen_map.size = Vector2(metric_w, 158)
 	screen_map.focus = str(map_info[0])
 	screen_map.nav_index = int(map_info[1])
-	screen_map.line = Color("#2B3F4C")
+	screen_map.line = Color("#403C37")
 	screen_map.fill = UI.SURFACE
 	screen_map.accent = UI.CYAN
 	panel.add_child(screen_map)
@@ -764,20 +777,24 @@ func show_act_intro() -> void:
 	focus.position = Vector2(x, 140)
 	main_layer.add_child(focus)
 	UI.enter(focus, 6, Vector2(-14, 0))
+	var identity: Label = UI.label(str(data.get("identity", "")), 14, UI.CYAN)
+	identity.position = Vector2(x, 168)
+	main_layer.add_child(identity)
+	UI.enter(identity, 7, Vector2(-14, 0))
 
 	var tiles: HBoxContainer = HBoxContainer.new()
-	tiles.position = Vector2(x, 186)
+	tiles.position = Vector2(x, 198)
 	tiles.size = Vector2(width, 84)
 	tiles.add_theme_constant_override("separation", 12)
 	main_layer.add_child(tiles)
 	UI.enter(tiles, 9)
 	tiles.add_child(UI.tile("META DE PATRIMÔNIO", UI.money(float(data["goal"])), UI.GREEN, "Saldo limpo + empresas + bens + carteira.", 24))
-	tiles.add_child(UI.tile("PRAZO", "%d dias" % int(data["days"]), UI.WHITE, "", 24))
+	tiles.add_child(UI.tile("PRAZO", "%d turnos" % int(data["days"]), UI.WHITE, "O ato acaba na noite em que a meta for batida, mesmo antes do prazo.", 24))
 	tiles.add_child(UI.tile("REMESSA POR NOITE", UI.money(float(data["remessa"])), UI.ORANGE, "Dinheiro sujo que o cliente entrega.", 24))
 	tiles.add_child(UI.tile("LIMITE DE SUSPEITA", "%d%%" % int(float(data["limit"])), UI.RED, "", 24))
 
 	var panel_h: float = 206.0
-	var panel: Panel = UI.panel(main_layer, Vector2(x, 286), Vector2(width, panel_h), UI.PANEL, Color("#28414D"))
+	var panel: Panel = UI.panel(main_layer, Vector2(x, 296), Vector2(width, panel_h), UI.PANEL, Color("#4E3F2A"))
 	UI.enter(panel, 12)
 	var half: float = (width - UI.PAD * 3.0) * 0.5
 	panel.add_child(UI.at(UI.caps("A AMEAÇA: " + str(data["threat"]).to_upper(), UI.RED, 11), Vector2(UI.PAD, 18)))
@@ -796,11 +813,11 @@ func show_act_intro() -> void:
 		list.add_child(UI.list_item("+", str(unlock_v), half))
 
 	# Trilha da campanha: os três atos e a fuga, com o ato atual em destaque.
-	var road_y: float = 286.0 + panel_h + 14.0
+	var road_y: float = 296.0 + panel_h + 14.0
 	var stops: Array = []
 	for i: int in range(B.ACTS.size()):
 		var act_data: Dictionary = B.ACTS[i]
-		stops.append(["ATO %d" % (i + 1), str(act_data["name"]), "%s em %d dias" % [UI.short_money(float(act_data["goal"])), int(act_data["days"])], signi(i + 1 - Campaign.act)])
+		stops.append(["ATO %d" % (i + 1), str(act_data["name"]), "%s em até %d turnos" % [UI.short_money(float(act_data["goal"])), int(act_data["days"])], signi(i + 1 - Campaign.act)])
 	stops.append(["DEPOIS", "Operação Fuga", "%d horas para sumir" % int(B.ESCAPE_HOURS), 1])
 	var gap: float = 10.0
 	var stop_w: float = (width - gap * float(stops.size() - 1)) / float(stops.size())
@@ -816,7 +833,7 @@ func show_act_intro() -> void:
 		cell.add_child(stop_name)
 		cell.add_child(UI.at(UI.caps(str(stop[2]).to_upper(), UI.MUTED, 9), Vector2(12, 46)))
 
-	var go: Button = UI.button_at(main_layer, Vector2(x, road_y + 66.0 + 16.0), Vector2(240, 50), "COMEÇAR O ATO %d" % Campaign.act, func() -> void: show_dashboard("overview"), true, "play")
+	var go: Button = UI.button_at(main_layer, Vector2(x, road_y + 66.0 + 16.0), Vector2(240, 50), "COMEÇAR O ATO %d" % Campaign.act, func() -> void: show_dashboard("missions"), true, "play")
 	UI.enter(go, 18)
 
 ## Cartão de abertura da Operação Fuga.
@@ -934,6 +951,10 @@ func _nav_badge(tab_id: String) -> Array:
 		"risk":
 			if GameManager.wiretap_days > 0:
 				return ["!", UI.RED]
+		"missions":
+			var offers: int = Missions.offered_contracts().size()
+			if offers > 0:
+				return [str(offers), UI.ORANGE]
 	return []
 
 func _build_sidebar() -> void:
@@ -941,7 +962,7 @@ func _build_sidebar() -> void:
 	var rail: Panel = Panel.new()
 	rail.position = Vector2.ZERO
 	rail.size = Vector2(UI.SIDEBAR_W, view.y)
-	var rail_box: StyleBoxFlat = UI.flat(Color(0.031, 0.071, 0.098, 0.94), UI.LINE, 0, 0)
+	var rail_box: StyleBoxFlat = UI.flat(Color(0.068, 0.062, 0.055, 0.95), UI.LINE, 0, 0)
 	rail_box.border_width_right = 1
 	rail.add_theme_stylebox_override("panel", rail_box)
 	main_layer.add_child(rail)
@@ -1020,9 +1041,9 @@ func _build_header() -> void:
 	else:
 		var total: int = maxi(GameManager.total_days, 1)
 		var day: int = GameManager.current_day
-		day_block.tooltip_text = "Ato %d, dia %d de %d. %s" % [Campaign.act, day, total, "Prazo prorrogado: não haverá outra chance." if Campaign.extension_used else "Faltam %d dias para o prazo." % Campaign.days_left()]
+		day_block.tooltip_text = "Ato %d, turno %d de %d. %s" % [Campaign.act, day, total, "Prazo prorrogado: não haverá outra chance." if Campaign.extension_used else "O ato acaba quando a meta for batida; o prazo é o turno %d." % total]
 		var late: bool = Campaign.days_left() <= 5
-		day_block.add_child(UI.caps("ATO %d  /  DIA %02d DE %02d" % [Campaign.act, day, total], UI.ORANGE if late else UI.MUTED))
+		day_block.add_child(UI.caps("ATO %d  /  TURNO %02d DE %02d" % [Campaign.act, day, total], UI.ORANGE if late else UI.MUTED))
 		clock_label = UI.mono(GameManager.format_time(GameManager.current_time_minutes), 24, UI.WHITE)
 		clock_label.position = Vector2(0, 12)
 		day_block.add_child(clock_label)
@@ -1140,7 +1161,7 @@ func next_step() -> Dictionary:
 	if suspicion >= B.STAFF_STRESS_LEVEL and not Staff.roster.is_empty():
 		return {"text": "Suspeita acima de %d%%: os laranjas estão se estressando. Vale reduzir o risco." % int(B.STAFF_STRESS_LEVEL), "tab": "risk", "color": UI.ORANGE}
 	for company_id: String in B.COMPANY_ORDER:
-		if GameManager.company_status(company_id) == "sale" and float(GameManager.companies[company_id]["price"]) <= GameManager.clean_money:
+		if GameManager.company_status(company_id) == "sale" and GameManager.price_of(company_id) <= GameManager.clean_money:
 			return {"text": "%s está à venda e cabe no seu saldo." % str(GameManager.companies[company_id]["name"]), "tab": "companies", "color": UI.CYAN}
 	Staff.ensure_candidates()
 	var free_slots: int = 0
@@ -1188,7 +1209,7 @@ func _build_dock() -> void:
 	dock.position = Vector2(view.x - UI.DOCK_W - UI.GUTTER, view.y - UI.DOCK_H - 14.0)
 	dock.size = Vector2(UI.DOCK_W, UI.DOCK_H)
 	dock.z_index = 50
-	UI.style_panel(dock, Color("#0B151D"), Color(UI.VIOLET, 0.6) if escaping else Color("#295567"), 8)
+	UI.style_panel(dock, Color("#161412"), Color(UI.VIOLET, 0.6) if escaping else Color("#4F4941"), 8)
 	main_layer.add_child(dock)
 	UI.enter(dock, 4, Vector2(0, 12))
 	if escaping:
@@ -1205,7 +1226,7 @@ func _build_dock() -> void:
 	_dock_time.position = Vector2(16, 25)
 	dock.add_child(_dock_time)
 	var action: Button = UI.button_at(dock, Vector2(UI.DOCK_W - 194.0, 8), Vector2(186, 42), "FINALIZAR TURNO", request_end_turn, true, "endturn")
-	action.tooltip_text = "Encerra o dia: folha dos laranjas, queda da suspeita e nova remessa."
+	action.tooltip_text = "Fecha o turno: folha, queda da suspeita, nova remessa, objetivos e acontecimentos da noite."
 
 # =========================================================
 # TROCA DE TURNO, EVENTOS E FINAIS
@@ -1279,8 +1300,19 @@ func _after_flow() -> void:
 		show_dashboard(current_tab)
 	_flow_busy = false
 
+## Objetivo concluído durante o turno: aviso verde com a recompensa.
+func _on_mission_completed(title: String, reward: String) -> void:
+	if GameManager.state == GameManager.GameState.WORK and _screen == "dashboard":
+		toast("Objetivo concluído: %s. %s" % [title, reward], UI.GREEN)
+		AudioManager.play_confirm()
+
 func _on_stats_changed() -> void:
 	if GameManager.state == GameManager.GameState.WORK and _screen == "dashboard" and not _flow_busy:
+		# Refazer a tela agora destruiria a janela aberta (ex.: um objetivo pago
+		# enquanto o jogador lê uma confirmação). A tela é refeita quando ela fechar.
+		if modal_open():
+			_refresh_pending = true
+			return
 		show_dashboard(current_tab, false)
 
 ## Final disparado no meio do dia (suspeita no limite, decolagem, imunidade).
@@ -1317,7 +1349,7 @@ func show_end_screen() -> void:
 	main_layer.add_child(title)
 	UI.enter(title, 0, Vector2(-16, 0))
 
-	var panel: Panel = UI.panel(main_layer, Vector2(x, 146), Vector2(width, 330), Color("#0B121A"), accent)
+	var panel: Panel = UI.panel(main_layer, Vector2(x, 146), Vector2(width, 330), Color("#141311"), accent)
 	UI.enter(panel, 2)
 	var story: Label = UI.paragraph(str(info["text"]), 17, UI.WHITE, width - 56.0)
 	story.position = Vector2(28, 24)
@@ -1337,7 +1369,7 @@ func show_end_screen() -> void:
 	UI.shown.erase("end_main")
 	UI.count(main_tile.get_meta("value_label") as Label, "end_main", Portfolio.monero if escaped else GameManager.net_worth(), UI.money)
 	tiles.add_child(UI.tile("ATO ALCANÇADO", "%d de %d" % [Campaign.act, B.ACTS.size()], UI.WHITE, "", 24))
-	tiles.add_child(UI.tile("DIAS DE CAMPANHA", str(GameManager.day_total), UI.WHITE, "", 24))
+	tiles.add_child(UI.tile("TURNOS DE CAMPANHA", str(GameManager.day_total), UI.WHITE, "", 24))
 	tiles.add_child(UI.tile("TOTAL LAVADO", UI.short_money(GameManager.total_processed), UI.CYAN, "", 24))
 
 	var note: String = "Metas batidas: %d de %d." % [Campaign.goals_hit, B.ACTS.size()]
@@ -1367,7 +1399,7 @@ func show_settings() -> void:
 	UI.enter(top, 0, Vector2(-12, 0))
 	main_layer.add_child(UI.at(UI.label("Áudio e apresentação.", 14, UI.MUTED), Vector2(74, 80)))
 
-	var panel: Panel = UI.panel(main_layer, Vector2(72, 122), Vector2(820, 470))
+	var panel: Panel = UI.panel(main_layer, Vector2(72, 122), Vector2(820, 480))
 	UI.enter(panel, 1)
 	panel.add_child(UI.at(UI.caps("ÁUDIO", UI.MUTED), Vector2(26, 26)))
 	panel.add_child(UI.at(UI.label("Volume geral", 16, UI.WHITE), Vector2(26, 52)))
@@ -1383,6 +1415,7 @@ func show_settings() -> void:
 	slider.value_changed.connect(func(v: float) -> void:
 		GameManager.volume = v
 		AudioManager.set_volume(v)
+		Campaign.save_settings()
 		volume_value.text = "%d%%" % int(v * 100.0)
 	)
 	panel.add_child(slider)
@@ -1390,6 +1423,7 @@ func show_settings() -> void:
 	var mute: Button = UI.toggle(GameManager.muted, func(v: bool) -> void:
 		GameManager.muted = v
 		AudioManager.set_muted(v)
+		Campaign.save_settings()
 	)
 	mute.position = Vector2(406, 128)
 	mute.size = Vector2(120, 36)
@@ -1398,14 +1432,33 @@ func show_settings() -> void:
 	panel.add_child(UI.at(UI.caps("APRESENTAÇÃO", UI.MUTED), Vector2(26, 196)))
 	panel.add_child(UI.at(UI.label("Reduzir animações", 16, UI.WHITE), Vector2(26, 228)))
 	panel.add_child(UI.at(UI.label("Telas aparecem prontas e a troca de turno vira um resumo rápido.", 12, UI.MUTED), Vector2(26, 252)))
-	var reduce: Button = UI.toggle(not UI.motion, func(v: bool) -> void: UI.motion = not v)
+	var reduce: Button = UI.toggle(not UI.motion, func(v: bool) -> void:
+		UI.motion = not v
+		Campaign.save_settings()
+	)
 	reduce.position = Vector2(406, 226)
 	reduce.size = Vector2(120, 36)
 	panel.add_child(reduce)
-	panel.add_child(UI.at(UI.label("Resolução recomendada: 1366 × 768", 15, UI.WHITE), Vector2(26, 300)))
-	panel.add_child(UI.at(UI.label("Atalhos: 1 a 8 trocam de aba, F1 abre a ajuda, Esc fecha janelas.", 14, UI.MUTED), Vector2(26, 326)))
-	panel.add_child(UI.at(UI.label("Na troca de turno, clique ou aperte Espaço para pular a animação.", 14, UI.MUTED), Vector2(26, 350)))
-	UI.button_at(panel, Vector2(26, 398), Vector2(160, 46), "VOLTAR", show_menu, true, "back")
+	panel.add_child(UI.at(UI.label("Noite completa em todo turno", 16, UI.WHITE), Vector2(26, 284)))
+	panel.add_child(UI.at(UI.label("Desligado: a noite é curta e a completa fica para o início de cada ato.", 12, UI.MUTED), Vector2(26, 308)))
+	var full: Button = UI.toggle(UI.full_night, func(v: bool) -> void:
+		UI.full_night = v
+		Campaign.save_settings()
+	)
+	full.position = Vector2(406, 282)
+	full.size = Vector2(120, 36)
+	panel.add_child(full)
+	panel.add_child(UI.at(UI.label("Qualidade gráfica alta", 16, UI.WHITE), Vector2(26, 340)))
+	panel.add_child(UI.at(UI.label("Luz indireta, reflexos e névoa volumétrica. Desligado roda melhor em placa integrada.", 12, UI.MUTED), Vector2(26, 364)))
+	var hq: Button = UI.toggle(UI.quality == "alta", func(v: bool) -> void:
+		UI.set_quality("alta" if v else "media")
+		Campaign.save_settings()
+	)
+	hq.position = Vector2(406, 338)
+	hq.size = Vector2(120, 36)
+	panel.add_child(hq)
+	panel.add_child(UI.at(UI.label("Atalhos: 1 a 9 trocam de aba, F1 abre a ajuda, Esc fecha janelas. Na noite, Espaço pula.", 13, UI.MUTED), Vector2(26, 394)))
+	UI.button_at(panel, Vector2(26, 412), Vector2(160, 46), "VOLTAR", show_menu, true, "back")
 
 func show_credits() -> void:
 	_begin_screen("credits", "menu")
@@ -1414,7 +1467,7 @@ func show_credits() -> void:
 	top.position = Vector2(72, 34)
 	main_layer.add_child(top)
 	UI.enter(top, 0, Vector2(-12, 0))
-	var panel: Panel = UI.panel(main_layer, Vector2(72, 122), Vector2(800, 470), Color("#0B121A"), Color("#28424D"))
+	var panel: Panel = UI.panel(main_layer, Vector2(72, 122), Vector2(800, 470), Color("#141311"), Color("#403B35"))
 	UI.enter(panel, 1)
 	panel.add_child(UI.at(UI.display("CLEAN SLATE", 30, UI.CYAN), Vector2(30, 26)))
 	panel.add_child(UI.at(UI.label("Simulador acadêmico de estratégia e gerenciamento.", 16, UI.WHITE), Vector2(30, 72)))

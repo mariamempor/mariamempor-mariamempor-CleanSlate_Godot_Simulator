@@ -37,8 +37,9 @@ var passport: String = ""
 var jet: String = ""
 var escape_result: Dictionary = {}
 
-# Progresso entre partidas (finais já vistos)
+# Progresso entre partidas (finais já vistos) e configurações do jogador
 var unlocked_endings: Array = []
+var settings: Dictionary = {}
 
 func _ready() -> void:
 	_load_meta()
@@ -97,7 +98,7 @@ func decay() -> float:
 
 ## Dinheiro sujo entregue por noite. Na fuga, o cliente some.
 func remessa() -> float:
-	return 0.0 if escape_active else float(data()["remessa"])
+	return 0.0 if escape_active else float(data()["remessa"]) * Director.remessa_factor()
 
 func progress() -> float:
 	return clampf(GameManager.net_worth() / maxf(goal(), 1.0), 0.0, 1.0)
@@ -160,6 +161,7 @@ func daily_tick() -> void:
 		return
 	_roll_threats()
 	_roll_news()
+	Director.nightly()
 
 	# Mandado de prisão: suspeita alta por várias noites seguidas (atos 2 e 3).
 	if act >= 2 and not mandado:
@@ -208,7 +210,9 @@ func _start_act(new_act: int) -> void:
 	# Promoção: o cliente adianta capital para a operação subir de porte.
 	GameManager.clean_money += float(data()["bonus"])
 	Staff.refresh_candidates()
-	GameManager.add_news("CAMPANHA", "Ato %d: %s" % [act, str(data()["name"])], str(data()["focus"]), "Meta de %s em %d dias" % [GameManager.format_money(goal()), days()])
+	Missions.start_act(act)
+	Director.act_event(act)
+	GameManager.add_news("CAMPANHA", "Ato %d: %s" % [act, str(data()["name"])], str(data()["focus"]), "Meta de %s em %d turnos" % [GameManager.format_money(goal()), days()])
 
 ## O prazo do ato acabou sem a meta. A primeira vez tem prorrogação, com multa.
 func _deadline() -> void:
@@ -217,12 +221,12 @@ func _deadline() -> void:
 		GameManager.total_days += B.DEADLINE_EXTENSION_DAYS
 		var penalty: float = GameManager.clean_money * B.DEADLINE_PENALTY
 		GameManager.clean_money -= penalty
-		GameManager.add_news("CARTEL", "O cliente cobra o atraso", "O prazo do ato venceu sem a meta. Houve prorrogação, e ela teve preço.", "-%s e mais %d dias" % [GameManager.format_money(penalty), B.DEADLINE_EXTENSION_DAYS])
+		GameManager.add_news("CARTEL", "O cliente cobra o atraso", "O prazo do ato venceu sem a meta. Houve prorrogação, e ela teve preço.", "-%s e mais %d turnos" % [GameManager.format_money(penalty), B.DEADLINE_EXTENSION_DAYS])
 		push_event({
 			"style": "cartel",
 			"kicker": "RECADO DO CLIENTE",
 			"title": "O prazo acabou",
-			"body": "A meta de %s não foi batida a tempo. O cliente concedeu mais %d dias e descontou %s do seu saldo limpo pelo incômodo. Não haverá segunda prorrogação." % [GameManager.format_money(goal()), B.DEADLINE_EXTENSION_DAYS, GameManager.format_money(penalty)],
+			"body": "A meta de %s não foi batida a tempo. O cliente concedeu mais %d turnos e descontou %s do seu saldo limpo pelo incômodo. Não haverá segunda prorrogação." % [GameManager.format_money(goal()), B.DEADLINE_EXTENSION_DAYS, GameManager.format_money(penalty)],
 			"options": []
 		})
 		return
@@ -350,7 +354,21 @@ func _choice_next_act() -> Dictionary:
 	_start_act(3)
 	return {"ok": true, "message": ""}
 
+## Monta o popup da ameaça e marca as escolhas que a resolvem (tudo menos
+## ignorar) para os objetivos do ato.
 func _threat_event(kind: String) -> Dictionary:
+	var event: Dictionary = _threat_popup(kind)
+	for opt_v: Variant in event.get("options", []) as Array:
+		var opt: Dictionary = opt_v
+		if bool(opt.get("danger", false)):
+			continue
+		var inner: Callable = opt["action"]
+		opt["action"] = func() -> Dictionary:
+			Missions.note_threat(kind)
+			return inner.call()
+	return event
+
+func _threat_popup(kind: String) -> Dictionary:
 	var s: float = scale()
 	match kind:
 		"fiscalizacao":
@@ -383,11 +401,11 @@ func _threat_event(kind: String) -> Dictionary:
 			}
 		"grampo":
 			GameManager.wiretap_days = B.WIRETAP_DAYS
-			GameManager.add_news("URGENTE", "Seu contato avisa: há um grampo ativo", "A Polícia Federal está ouvindo as linhas da operação.", "Operações geram %d%% mais suspeita por %d dias" % [int(B.WIRETAP_RISK * 100.0), B.WIRETAP_DAYS])
+			GameManager.add_news("URGENTE", "Seu contato avisa: há um grampo ativo", "A Polícia Federal está ouvindo as linhas da operação.", "Operações geram %d%% mais suspeita por %d turnos" % [int(B.WIRETAP_RISK * 100.0), B.WIRETAP_DAYS])
 			return {
 				"style": "official", "kicker": "POLÍCIA FEDERAL / INTERCEPTAÇÃO",
 				"title": "Seus telefones estão grampeados",
-				"body": "Um contato na operadora avisou: há interceptação autorizada nas suas linhas. Por %d dias, cada operação gera %d%% mais suspeita. A Varredura eletrônica, na aba Risco, remove o grampo." % [B.WIRETAP_DAYS, int(B.WIRETAP_RISK * 100.0)],
+				"body": "Um contato na operadora avisou: há interceptação autorizada nas suas linhas. Por %d turnos, cada operação gera %d%% mais suspeita. A Varredura eletrônica, na aba Risco, remove o grampo." % [B.WIRETAP_DAYS, int(B.WIRETAP_RISK * 100.0)],
 				"options": []
 			}
 		"aliado":
@@ -502,7 +520,7 @@ func escape_spend(hours: float) -> void:
 		resolve_escape()
 
 func escape_item_cost(item: Dictionary) -> float:
-	return float(item["cost"]) * scale()
+	return float(item["cost"]) * scale() * (0.5 if Missions.perk("escape") > 0.0 else 1.0)
 
 func liquidate_company(company_id: String) -> Dictionary:
 	if not escape_active or not GameManager.owns(company_id):
@@ -566,6 +584,8 @@ func interception_chance() -> float:
 		chance += B.ESCAPE_CHANCE_MANDADO
 	chance -= float(B.tier_item(B.PASSPORTS, passport).get("bonus", 0.0))
 	chance -= float(B.tier_item(B.JETS, jet).get("bonus", 0.0))
+	# Vantagens dos objetivos: rota de fuga preparada e patrimônio fora do radar.
+	chance -= Missions.perk("interception") + (8.0 if Missions.perk("escape") > 0.0 else 0.0)
 	return clampf(chance, B.ESCAPE_CHANCE_MIN, B.ESCAPE_CHANCE_MAX)
 
 func takeoff() -> Dictionary:
@@ -638,10 +658,27 @@ func _load_meta() -> void:
 	for ending_id_v: Variant in GameManager.as_list((parsed as Dictionary).get("endings")):
 		if B.ENDINGS.has(str(ending_id_v)) and not unlocked_endings.has(str(ending_id_v)):
 			unlocked_endings.append(str(ending_id_v))
+	settings = GameManager.as_dict((parsed as Dictionary).get("settings"))
 
 func _save_meta() -> void:
 	var file: FileAccess = FileAccess.open(META_PATH, FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify({"endings": unlocked_endings}))
+	file.store_string(JSON.stringify({"endings": unlocked_endings, "settings": settings}))
 	file.close()
+
+## Configurações ficam no mesmo arquivo da galeria de finais (sobrevivem ao fim da campanha).
+func save_settings() -> void:
+	settings = {"motion": UI.motion, "full_night": UI.full_night, "volume": GameManager.volume, "muted": GameManager.muted, "quality": UI.quality}
+	_save_meta()
+
+## Chamado pelo main.gd quando todos os autoloads já existem.
+func apply_settings() -> void:
+	UI.motion = bool(settings.get("motion", UI.motion))
+	UI.full_night = bool(settings.get("full_night", UI.full_night))
+	var q: String = str(settings.get("quality", ""))
+	UI.set_quality(q if q in ["alta", "media"] else UI.auto_quality())
+	GameManager.volume = clampf(float(settings.get("volume", GameManager.volume)), 0.0, 1.0)
+	GameManager.muted = bool(settings.get("muted", GameManager.muted))
+	AudioManager.set_volume(GameManager.volume)
+	AudioManager.set_muted(GameManager.muted)

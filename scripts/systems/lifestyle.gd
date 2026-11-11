@@ -12,12 +12,15 @@ var owned: Array = []               # ids dos bens comprados
 var declared_income: float = 0.0
 var audits: int = 0                 # malhas finas já sofridas
 var audit_cooldown: int = 0
+## Prestígio que não vem de bens: objetivos, capas de revista, recusas famosas.
+var bonus_prestige: int = 0
 
 func reset() -> void:
 	owned = []
 	declared_income = 0.0
 	audits = 0
 	audit_cooldown = 0
+	bonus_prestige = 0
 
 # ---------------------------------------------------------
 # Consultas
@@ -33,10 +36,10 @@ func goods_value() -> float:
 	return total
 
 func prestige() -> int:
-	var total: int = 0
+	var total: int = bonus_prestige
 	for good_id: String in owned:
 		total += int(B.good_data(good_id).get("prestige", 0))
-	return total
+	return maxi(0, total)
 
 ## Nível de prestígio, de 0 a 4.
 func prestige_tier() -> int:
@@ -264,7 +267,7 @@ func _audit_event() -> Dictionary:
 # ---------------------------------------------------------
 
 func to_dict() -> Dictionary:
-	return {"owned": owned, "declared_income": declared_income, "audits": audits, "audit_cooldown": audit_cooldown}
+	return {"owned": owned, "declared_income": declared_income, "audits": audits, "audit_cooldown": audit_cooldown, "bonus_prestige": bonus_prestige}
 
 func from_dict(data: Dictionary) -> void:
 	reset()
@@ -274,3 +277,4 @@ func from_dict(data: Dictionary) -> void:
 	declared_income = float(data.get("declared_income", 0.0))
 	audits = int(data.get("audits", 0))
 	audit_cooldown = int(data.get("audit_cooldown", 0))
+	bonus_prestige = int(data.get("bonus_prestige", 0))

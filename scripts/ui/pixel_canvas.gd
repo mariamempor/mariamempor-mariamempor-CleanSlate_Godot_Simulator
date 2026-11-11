@@ -78,6 +78,8 @@ const HERO_BACK: Array = [
 var t: float = 0.0
 var duration: float = 6.0
 var playing: bool = true
+## Velocidade da linha do tempo (a noite curta é a completa acelerada).
+var speed: float = 1.0
 var skippable: bool = true
 
 var _unit: float = 6.0              # tamanho de um "pixel grande" na tela
@@ -95,7 +97,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if playing and not _done:
-		t += delta
+		t += delta * speed
 		if t >= duration:
 			t = duration
 			_finish()
